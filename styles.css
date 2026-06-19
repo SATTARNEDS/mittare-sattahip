@@ -96,14 +96,14 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
 .hero__image::before { position: absolute; right: 5%; bottom: -9%; width: min(54vw, 760px); height: min(54vw, 760px); content: ""; background: linear-gradient(150deg, rgba(255,255,255,.09), rgba(255,255,255,.01)); border: 1px solid rgba(255,255,255,.15); border-radius: 46% 54% 55% 45%; transform: rotate(-12deg); }
 .hero__image::after { position: absolute; right: 15%; bottom: 15%; width: 170px; height: 170px; content: ""; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 88S16 69 16 37c0-16 10-25 22-25 7 0 11 4 12 10 2-6 6-10 13-10 12 0 22 9 22 25 0 32-35 51-35 51Z' fill='none' stroke='%23ffdc20' stroke-width='3'/%3E%3Cpath d='m35 48 10 10 22-27' fill='none' stroke='%23ffdc20' stroke-linecap='round' stroke-linejoin='round' stroke-width='4'/%3E%3C/svg%3E") center / contain no-repeat; opacity: .9; }
 .hero__overlay { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(3,42,39,.4), transparent 70%), linear-gradient(0deg, rgba(3,42,39,.4), transparent 45%); }
-.hero__content { position: relative; z-index: 2; padding-block: 86px 120px; }
+.hero__content { position: relative; z-index: 2; padding-block: 96px 130px; }
 .eyebrow { display: flex; gap: 12px; align-items: center; margin: 0 0 20px; color: var(--yellow); font-size: .8rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
 .eyebrow span { width: 34px; height: 2px; background: currentColor; }
 .eyebrow--dark { color: var(--green-800); }
 .eyebrow--light { color: var(--yellow); }
-.hero h1 { max-width: 650px; margin: 0; font-size: clamp(3.6rem, 7.3vw, 7rem); font-weight: 700; line-height: .98; letter-spacing: -.055em; }
+.hero h1 { max-width: 720px; margin: 0; font-size: clamp(3.6rem, 7vw, 6.7rem); font-weight: 700; line-height: 1.08; letter-spacing: -.045em; }
 .hero h1 em { color: var(--yellow); font-style: normal; }
-.hero__lead { max-width: 570px; margin: 28px 0 34px; color: rgba(255,255,255,.84); font-size: 1.16rem; line-height: 1.75; }
+.hero__lead { max-width: 590px; margin: 38px 0 38px; color: rgba(255,255,255,.84); font-size: 1.16rem; line-height: 1.85; }
 .hero__actions { display: flex; gap: 13px; flex-wrap: wrap; }
 .hero__trust { display: flex; gap: 0; margin-top: 58px; }
 .hero__trust div { display: grid; min-width: 150px; padding-right: 32px; margin-right: 32px; border-right: 1px solid rgba(255,255,255,.2); }
@@ -396,7 +396,7 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
 }
 
 @media (max-width: 800px) {
-  :root { --container: min(100% - 30px, 680px); }
+  :root { --container: min(100% - 44px, 680px); }
   .service-bar p { font-size: .72rem; }
   .main-nav { position: absolute; top: 76px; right: 0; left: 0; display: none; padding: 22px 20px 28px; background: var(--white); border-bottom: 1px solid var(--line); box-shadow: 0 20px 35px rgba(3,47,44,.12); flex-direction: column; align-items: stretch; }
   .main-nav.is-open { display: flex; }
@@ -407,9 +407,9 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
   .hero { min-height: 790px; align-items: end; }
   .hero__image { background-position: 64% center; }
   .hero__overlay { background: linear-gradient(0deg, rgba(3,42,39,.98) 0%, rgba(3,42,39,.88) 48%, rgba(3,42,39,.18) 100%); }
-  .hero__content { padding-block: 220px 65px; }
-  .hero h1 { font-size: clamp(3.2rem, 14vw, 5.3rem); }
-  .hero__lead { max-width: 520px; font-size: 1rem; }
+  .hero__content { padding-block: 220px 80px; }
+  .hero h1 { max-width: 600px; font-size: clamp(3rem, 11.5vw, 4.7rem); line-height: 1.1; letter-spacing: -.035em; }
+  .hero__lead { max-width: 540px; margin-top: 34px; font-size: 1rem; line-height: 1.8; }
   .hero__trust { margin-top: 38px; }
   .hero__trust div { min-width: auto; padding-right: 18px; margin-right: 18px; }
   .scroll-cue { display: none; }
@@ -438,9 +438,9 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
   .brand__mark { width: 39px; height: 39px; }
   .hero { min-height: 745px; }
   .hero__image { background-color: var(--green-950); }
-  .hero__content { padding-top: 300px; }
-  .hero h1 { font-size: 3.25rem; }
-  .hero__lead { margin-block: 20px 26px; line-height: 1.6; }
+  .hero__content { padding: 285px 4px 68px; }
+  .hero h1 { font-size: clamp(2.75rem, 13.5vw, 3.35rem); line-height: 1.12; letter-spacing: -.025em; }
+  .hero__lead { margin-block: 30px 30px; line-height: 1.75; }
   .hero__actions { flex-direction: column; align-items: stretch; }
   .hero__trust { gap: 0; justify-content: space-between; }
   .hero__trust div { padding-right: 9px; margin-right: 9px; }
