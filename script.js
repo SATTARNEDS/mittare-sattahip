@@ -376,8 +376,10 @@ function renderPremiumFields() {
   mode.classList.toggle("is-quote", !officialRate);
   mode.textContent = officialRate
     ? "อัตราสาธารณะ: ระบบคำนวณเบี้ยสุทธิ + อากรแสตมป์ + VAT 7% ให้ทันที"
-    : "แผนพิจารณารับประกัน: ระบบจะจัดทำใบขอคำนวณเบี้ยจากปัจจัยจริง โดยไม่เดาตัวเลขฐานเบี้ย";
-  submitLabel.textContent = officialRate ? "คำนวณเบี้ยจริงและสร้างใบสรุป" : "สร้างใบขอคำนวณเบี้ย";
+    : "แผนประมาณการ: ระบบแสดงช่วงราคาโดยประมาณเพื่อวางแผนงบเบื้องต้นทันที";
+  if (submitLabel) {
+    submitLabel.textContent = officialRate ? "คำนวณเบี้ยจริงและสร้างใบสรุป" : "ประมาณการและสร้างใบสรุป";
+  }
 
   if (officialRate) {
     container.innerHTML = `
@@ -509,25 +511,182 @@ function buildQuoteRequest(plan, formData) {
   }
 
   const verifiedNotes = [];
+  let adjustment = 0;
   if (plan.id === "motor-permpoon") {
     const discounts = { "0": 0, "1": 500, "2": 900, "3": 1200 };
     const discount = discounts[formData.get("noClaimYears")] || 0;
-    if (discount) verifiedNotes.push(`ส่วนลดประวัติไม่มีเคลมที่เผยแพร่: ${formatCurrency(discount)}`);
+    if (discount) {
+      adjustment -= discount;
+      verifiedNotes.push(`ส่วนลดประวัติไม่มีเคลมที่เผยแพร่: ${formatCurrency(discount)}`);
+    }
   }
   if (["motor-extra", "motor-eco"].includes(plan.id) && formData.get("hasWrap") === "yes") {
+    adjustment += 2000;
     verifiedNotes.push("ค่าเพิ่มสำหรับ Wrap / Sticker รอบคันที่หน้าแผนระบุ: 2,000 บาท/คัน");
   }
 
+  const estimate = calculateEstimatedPremium(plan, formData);
+  const minimum = roundToHundred(Math.max(500, estimate.minimum + adjustment));
+  const maximum = roundToHundred(Math.max(minimum + 100, estimate.maximum + adjustment));
+  const priceRange = `${formatCurrency(minimum)} – ${formatCurrency(maximum)}`;
+
   return {
-    status: "ใบขอคำนวณเบี้ย — รอฝ่ายรับประกัน",
-    priceLabel: "เบี้ยประกัน",
-    price: "รอใบเสนอราคา",
+    status: "ประมาณการเบื้องต้น",
+    priceLabel: "ช่วงเบี้ยโดยประมาณ",
+    price: priceRange,
     caption: verifiedNotes.length
-      ? verifiedNotes.join(" · ")
-      : "ต้องใช้ตารางรุ่นรถ/ทุน/อาชีพ/ทรัพย์สิน และผลพิจารณารับประกันของบริษัท",
-    details,
-    source: `${sourceLink(officialRateSources.products)}${verifiedNotes.length ? `<br>${verifiedNotes.join("<br>")}` : ""}`
+      ? `${verifiedNotes.join(" · ")} · ช่วงราคาเป็นการประเมินเพื่อวางแผนงบเท่านั้น`
+      : "ช่วงราคาเป็นการประเมินเพื่อวางแผนงบเท่านั้น ไม่ใช่ใบเสนอราคา",
+    details: [...details, ["ช่วงเบี้ยโดยประมาณ", priceRange]],
+    source: `${sourceLink(officialRateSources.products)}<br>สูตรประมาณการเป็นแบบจำลองของเว็บไซต์ Demo ไม่ใช่อัตราที่บริษัทประกาศ${verifiedNotes.length ? `<br>${verifiedNotes.join("<br>")}` : ""}`
   };
+}
+
+function calculateEstimatedPremium(plan, formData) {
+  switch (plan.category) {
+    case "motor":
+      return calculateMotorEstimate(plan.id, formData);
+    case "property":
+      return calculatePropertyEstimate(plan.id, formData);
+    case "personal":
+      return calculatePersonalEstimate(plan.id, formData);
+    case "business":
+      return calculateBusinessEstimate(plan.id, formData);
+    case "specialty":
+      return calculateSpecialtyEstimate(plan.id, formData);
+    default:
+      return createEstimateRange(5000);
+  }
+}
+
+function calculateMotorEstimate(planId, formData) {
+  const rates = {
+    "motor-1": { rate: 0.024, minimum: 10500 },
+    "motor-one": { rate: 0.022, minimum: 9800 },
+    "motor-extra": { rate: 0.023, minimum: 10200 },
+    "motor-eco": { rate: 0.018, minimum: 8500 },
+    "motor-2": { rate: 0.014, minimum: 7200 },
+    "motor-2plus": { rate: 0.011, minimum: 6500 },
+    "motor-permpoon": { rate: 0.01, minimum: 5800 },
+    "motor-3plus": { rate: 0.007, minimum: 4800 },
+    "motor-permpoon3": { rate: 0.0065, minimum: 4500 },
+    "motor-3": { rate: 0.004, minimum: 2800 },
+    "motor-taweekoon": { rate: 0.016, minimum: 7500 }
+  };
+  const config = rates[planId] || { rate: 0.012, minimum: 6000 };
+  const vehicleYear = Number(formData.get("vehicleYear")) || new Date().getFullYear() - 3;
+  const vehicleValue = Number(formData.get("vehicleValue")) || 500000;
+  const usageMultipliers = { personal: 1, business: 1.14, commercial: 1.18 };
+  const repairMultipliers = { garage: 1, dealer: 1.08 };
+  const claimMultipliers = { "0": 1, "1": 1.06, "2plus": 1.12 };
+  const vehicleAge = Math.max(0, new Date().getFullYear() - vehicleYear);
+  const ageMultiplier = vehicleAge > 10 ? 1.12 : vehicleAge > 6 ? 1.06 : 1;
+
+  const basePremium = Math.max(
+    config.minimum,
+    vehicleValue * config.rate
+      * (usageMultipliers[formData.get("vehicleUsage")] || 1)
+      * (repairMultipliers[formData.get("repairType")] || 1)
+      * (claimMultipliers[formData.get("claimHistory")] || 1)
+      * ageMultiplier
+  );
+
+  return createEstimateRange(basePremium);
+}
+
+function calculatePropertyEstimate(planId, formData) {
+  const value = Number(formData.get("propertyValue")) || 2000000;
+  const rates = {
+    "residential-fire": { rate: 0.0012, minimum: 3500 },
+    home: { rate: 0.0014, minimum: 4200 },
+    "property-risk": { rate: 0.002, minimum: 8000 },
+    construction: { rate: 0.0035, minimum: 15000 }
+  };
+  const config = rates[planId] || { rate: 0.0015, minimum: 4000 };
+  const structureMultipliers = { concrete: 1, mixed: 1.06, wood: 1.14 };
+  const floodMultiplier = formData.get("floodCoverage") === "yes" ? 1.1 : 1;
+
+  const basePremium = Math.max(
+    config.minimum,
+    value * config.rate
+      * (structureMultipliers[formData.get("constructionType")] || 1)
+      * floodMultiplier
+  );
+
+  return createEstimateRange(basePremium);
+}
+
+function calculatePersonalEstimate(planId, formData) {
+  const benefit = Number(formData.get("benefitAmount")) || 500000;
+  const members = Math.max(1, Number(formData.get("memberCount")) || 1);
+  const age = Number(formData.get("insuredAge")) || 35;
+  const rates = {
+    pa1: { rate: 0.003, minimum: 1200 },
+    pa2: { rate: 0.0035, minimum: 1400 },
+    "income-hospital": { rate: 0.018, minimum: 900 },
+    golf: { rate: 0.012, minimum: 2500 }
+  };
+  const config = rates[planId] || { rate: 0.003, minimum: 1200 };
+  const riskMultipliers = { office: 1, field: 1.12, high: 1.28 };
+  const ageMultiplier = age > 55 ? 1.15 : age > 45 ? 1.08 : 1;
+  const memberMultiplier = planId === "pa2" ? members * 0.85 + 0.15 : 1;
+
+  const basePremium = Math.max(
+    config.minimum,
+    benefit * config.rate
+      * (riskMultipliers[formData.get("occupationRisk")] || 1)
+      * ageMultiplier
+      * memberMultiplier
+  );
+
+  return createEstimateRange(basePremium);
+}
+
+function calculateBusinessEstimate(planId, formData) {
+  const assetValue = Number(formData.get("assetValue")) || 1000000;
+  const revenue = Number(formData.get("annualRevenue")) || 3000000;
+  const employees = Math.max(1, Number(formData.get("employeeCount")) || 5);
+  const rates = {
+    sme: { assetRate: 0.004, revenueRate: 0.0008, minimum: 5000 },
+    "public-liability": { assetRate: 0.0015, revenueRate: 0.0012, minimum: 3500 },
+    carrier: { assetRate: 0.003, revenueRate: 0.0005, minimum: 6000 },
+    "inland-named": { assetRate: 0.0025, revenueRate: 0.0004, minimum: 4500 },
+    "inland-allrisk": { assetRate: 0.0035, revenueRate: 0.0006, minimum: 7000 },
+    "gold-shop": { assetRate: 0.006, revenueRate: 0.0015, minimum: 12000 }
+  };
+  const config = rates[planId] || { assetRate: 0.003, revenueRate: 0.001, minimum: 4000 };
+  const employeeFactor = 1 + Math.min(employees - 1, 20) * 0.015;
+
+  const basePremium = Math.max(
+    config.minimum,
+    assetValue * config.assetRate + revenue * config.revenueRate * employeeFactor
+  );
+
+  return createEstimateRange(basePremium);
+}
+
+function calculateSpecialtyEstimate(planId, formData) {
+  const value = Number(formData.get("specialtyValue")) || 200000;
+  const rates = {
+    drone: { rate: 0.025, minimum: 3000 },
+    "fuel-station": { rate: 0.0045, minimum: 25000 }
+  };
+  const config = rates[planId] || { rate: 0.015, minimum: 5000 };
+  const usageMultiplier = /เชิงพาณิชย์|commercial/i.test(formData.get("specialtyUsage") || "") ? 1.18 : 1;
+
+  const basePremium = Math.max(config.minimum, value * config.rate * usageMultiplier);
+  return createEstimateRange(basePremium);
+}
+
+function createEstimateRange(basePremium) {
+  return {
+    minimum: roundToHundred(basePremium * 0.9),
+    maximum: roundToHundred(basePremium * 1.12)
+  };
+}
+
+function roundToHundred(value) {
+  return Math.round(value / 100) * 100;
 }
 
 function sourceLink(source) {
@@ -638,7 +797,7 @@ function openProductDetail(productId) {
   primaryButton.hidden = false;
   primaryButton.textContent = isOfficialRatePlan(product.id)
     ? "คำนวณเบี้ยแผนนี้"
-    : "ขอคำนวณเบี้ยแผนนี้";
+    : "ประมาณการแผนนี้";
   primaryButton.dataset.planId = product.id;
   primaryButton.href = premiumCalculator
     ? "#premium-check"
