@@ -1,0 +1,417 @@
+const menuButton = document.querySelector(".menu-toggle");
+const mainNavigation = document.querySelector(".main-nav");
+const quoteForm = document.querySelector("#quote-form");
+const successMessage = document.querySelector(".form-success");
+const profileDialog = document.querySelector("#profile-dialog");
+const productDialog = document.querySelector("#product-dialog");
+const premiumDialog = document.querySelector("#premium-dialog");
+const premiumCalculator = document.querySelector("#premium-calculator");
+
+const profileData = {
+  thepa: {
+    name: "น.ต. เทพา สารกาล",
+    role: "ผู้จัดการฝ่ายขายและขยายงาน",
+    image: "assets/thepa-saraphon.png",
+    summary: "ผู้นำทีมที่มุ่งเน้นการวางแผนงานขาย การพัฒนาทีม และการอธิบายทางเลือกด้านประกันภัยให้ลูกค้าเข้าใจได้ก่อนตัดสินใจ",
+    highlights: ["วางแผนความคุ้มครอง", "พัฒนาทีมงาน", "ประสานงานลูกค้า"],
+    phone: "0812345678"
+  },
+  phannee: {
+    name: "พรรณี สารกาล",
+    role: "ผู้จัดการฝ่ายขายและขยายงาน",
+    image: "assets/phannee-saraphon-patterned.png",
+    summary: "ผู้ดูแลทีมและลูกค้าด้วยแนวทางที่เป็นกันเอง ใส่ใจรายละเอียด และพร้อมช่วยประสานตั้งแต่การเลือกความคุ้มครองไปจนถึงขั้นตอนบริการหลังการขาย",
+    highlights: ["ดูแลลูกค้า", "ประสานงานบริการ", "ให้คำปรึกษาเบื้องต้น"],
+    phone: "0898765432"
+  }
+};
+
+const motorExclusions = [
+  "การใช้รถนอกประเภทที่แจ้ง หรือผู้ขับขี่ไม่มีใบอนุญาตตามเงื่อนไข",
+  "การแข่งรถ เมาสุรา ยาเสพติด หรือการกระทำโดยเจตนา",
+  "ความเสียหายส่วนแรกและข้อยกเว้นอื่นตามตารางกรมธรรม์"
+];
+const propertyExclusions = [
+  "การเสื่อมสภาพ การสึกหรอ หรือความบกพร่องเดิมของทรัพย์สิน",
+  "ภัยสงคราม การก่อการร้าย และภัยที่ไม่ได้ระบุซื้อความคุ้มครอง",
+  "ทรัพย์สินบางชนิดต้องแจ้งรายการหรือกำหนดวงเงินเฉพาะ"
+];
+const personalExclusions = [
+  "การเจ็บป่วยหรือภาวะที่ไม่ใช่อุบัติเหตุ เว้นแต่แผนระบุไว้",
+  "การกระทำโดยเจตนา เมาสุรา ยาเสพติด หรือกิจกรรมเสี่ยงที่ยกเว้น",
+  "โรคหรือภาวะที่เป็นมาก่อนตามนิยามและเงื่อนไขของกรมธรรม์"
+];
+
+const insurancePlans = [
+  createPlan("motor-1", "motor", "รถ", "รถยนต์ประเภท 1", "คุ้มครองกว้างที่สุดสำหรับรถของเราและคู่กรณี", ["รถใหม่หรือรถมูลค่าสูง", "ผู้ใช้รถเป็นประจำ"], ["รถเสียหายจากการชนและอุบัติเหตุตามเงื่อนไข", "รถสูญหาย ไฟไหม้ และน้ำท่วมตามกรมธรรม์", "ความรับผิดต่อชีวิต ร่างกาย และทรัพย์สินคู่กรณี"], ["รุ่นรถ อายุรถ ทุนประกัน", "ประวัติเคลมและลักษณะการใช้", "ซ่อมห้างหรือซ่อมอู่"], motorExclusions, ["สำเนาทะเบียนรถ", "ข้อมูลผู้ขับขี่", "กรมธรรม์เดิมถ้ามี"]),
+  createPlan("motor-2", "motor", "รถ", "รถยนต์ประเภท 2", "คุ้มครองคู่กรณี พร้อมรถสูญหายหรือไฟไหม้", ["รถที่ต้องการคุ้มครองสูญหายและไฟไหม้", "ผู้ไม่ต้องการคุ้มครองความเสียหายรถตนจากการชน"], ["ความรับผิดต่อคู่กรณี", "รถประกันสูญหายหรือไฟไหม้", "อุบัติเหตุส่วนบุคคลและค่ารักษาตามตาราง"], ["ชนิดรถ อายุรถ และทุนสูญหาย/ไฟไหม้", "พื้นที่ใช้งานและประวัติเคลม"], motorExclusions, ["ทะเบียนรถ", "ข้อมูลการใช้งาน", "รายละเอียดกรมธรรม์เดิม"]),
+  createPlan("motor-3", "motor", "รถ", "รถยนต์ประเภท 3", "เน้นความรับผิดต่อคู่กรณีในงบประหยัด", ["รถอายุหลายปี", "ผู้รับความเสี่ยงค่าซ่อมรถตนเองได้"], ["ชีวิต ร่างกาย และทรัพย์สินคู่กรณี", "อุบัติเหตุส่วนบุคคลและค่ารักษาตามวงเงิน", "ประกันตัวผู้ขับขี่ตามเงื่อนไข"], ["ประเภทรถและการใช้งาน", "วงเงินความรับผิดที่เลือก"], motorExclusions, ["ทะเบียนรถ", "ข้อมูลผู้เอาประกัน"]),
+  createPlan("motor-2plus", "motor", "2+", "รถยนต์ประเภท 2+", "คุ้มครองรถเราเมื่อชนกับยานพาหนะที่ระบุคู่กรณีได้ พร้อมสูญหายและไฟไหม้", ["ผู้ต้องการความคุ้มครองใกล้ประเภท 1 ในงบต่ำลง", "รถที่ยังมีมูลค่าแต่ไม่จำเป็นต้องซ่อมทุกกรณี"], ["รถประกันชนยานพาหนะทางบกเมื่อระบุคู่กรณีได้", "สูญหายและไฟไหม้ตามทุน", "ความรับผิดต่อคู่กรณี"], ["รุ่นและอายุรถ", "ทุนประกัน", "ประวัติเคลมและค่าเสียหายส่วนแรก"], motorExclusions, ["ทะเบียนรถ", "ภาพถ่ายรถตามที่ร้องขอ", "กรมธรรม์เดิม"]),
+  createPlan("motor-3plus", "motor", "3+", "รถยนต์ประเภท 3+", "คุ้มครองรถเราเมื่อชนกับยานพาหนะที่ระบุคู่กรณีได้ โดยไม่รวมสูญหายและไฟไหม้", ["รถใช้งานทั่วไปที่ต้องการควบคุมงบ", "ผู้ต้องการเพิ่มความคุ้มครองรถตนจากประเภท 3"], ["รถประกันชนยานพาหนะทางบกและระบุคู่กรณีได้", "ความรับผิดต่อคู่กรณี", "ความคุ้มครองผู้ขับขี่และผู้โดยสารตามตาราง"], ["รุ่นรถ อายุรถ และทุนชน", "ค่าเสียหายส่วนแรกและประวัติเคลม"], motorExclusions, ["ทะเบียนรถ", "ภาพถ่ายรถถ้ากำหนด"]),
+  createPlan("motor-compulsory", "motor", "พ.ร.บ.", "ประกันภัยรถยนต์ภาคบังคับ", "ความคุ้มครองผู้ประสบภัยจากรถตามกฎหมาย", ["รถทุกคันที่จดทะเบียนและใช้งานบนถนน", "เจ้าของรถที่ต้องต่อภาษีประจำปี"], ["ค่าเสียหายเบื้องต้น", "ค่ารักษาพยาบาลและผลประโยชน์กรณีเสียชีวิต/ทุพพลภาพตามกฎหมาย", "คุ้มครองบุคคล ไม่ใช่ค่าซ่อมรถ"], ["ประเภทรถและขนาดเครื่องยนต์/จำนวนที่นั่ง", "ลักษณะการใช้รถตามทะเบียน"], ["ไม่คุ้มครองความเสียหายต่อตัวรถ", "วงเงินเป็นไปตามกฎหมายและสถานะผู้ขับขี่"], ["สำเนาทะเบียนรถ", "วันเริ่มคุ้มครอง"]),
+  createPlan("motor-one", "motor", "ป.1", "มิตรแท้หนึ่งเดียว", "กลุ่มแผนประเภท 1 สำหรับรถเก๋งตามขนาดและเงื่อนไขรับประกัน", ["รถเก๋งกลางและรถเก๋งใหญ่", "ผู้ต้องการแผนสำเร็จรูปประเภท 1"], ["ความคุ้มครองรถประกันและคู่กรณีตามแผน", "สูญหาย ไฟไหม้ และภัยธรรมชาติตามตาราง", "บริการช่วยเหลือและเงื่อนไขซ่อมตามแผน"], ["รุ่นรถ กลุ่มรถ และอายุรถ", "ทุนประกันและประเภทการซ่อม", "ประวัติการเคลม"], motorExclusions, ["ทะเบียนรถ", "ภาพรถ", "ประวัติกรมธรรม์"]),
+  createPlan("motor-extra", "motor", "Extra", "ป.1 Extra", "แผนประเภท 1 สำหรับเก๋งเล็ก SUV กระบะบรรทุก และกระบะสี่ประตู", ["เจ้าของรถในกลุ่มรุ่นที่แผนรองรับ", "ผู้ต้องการเลือกแผนตามประเภทรถ"], ["ความเสียหายรถประกันตามเงื่อนไขประเภท 1", "ความรับผิดต่อคู่กรณี", "สูญหาย ไฟไหม้ และความคุ้มครองแนบท้าย"], ["กลุ่มรถและรุ่นที่รับประกัน", "อายุรถ ทุน และประเภทซ่อม"], motorExclusions, ["ทะเบียนรถ", "รูปถ่ายรถ", "ข้อมูลอุปกรณ์ตกแต่ง"]),
+  createPlan("motor-eco", "motor", "ECO", "แผนรถเก๋ง Eco Car", "แผนสำหรับรถ Eco Car และรถเก๋งขนาดเล็กที่เข้าเกณฑ์", ["เจ้าของ Eco Car", "ผู้ใช้รถในเมืองและต้องการแผนตามกลุ่มรถ"], ["ความคุ้มครองตามประเภทที่เลือก", "ความรับผิดต่อบุคคลภายนอก", "ความคุ้มครองรถประกันตามทุนและเงื่อนไข"], ["รุ่นรถ ปีรถ และทุนประกัน", "ประเภทความคุ้มครองที่เลือก"], motorExclusions, ["ทะเบียนรถ", "ข้อมูลรุ่นย่อย"]),
+  createPlan("motor-permpoon", "motor", "2+", "มิตรแท้เพิ่มพูน 2+", "แผน 2+ ราคาประหยัด เน้นชนกับยานพาหนะ สูญหาย และไฟไหม้", ["รถใช้งานทั่วไป", "ผู้ต้องการบริหารเบี้ยแต่ยังดูแลรถตนเอง"], ["ชนกับยานพาหนะที่ระบุคู่กรณีได้", "สูญหายและไฟไหม้", "ความรับผิดต่อคู่กรณี"], ["กลุ่มรถ อายุรถ ทุนประกัน", "เงื่อนไขค่าเสียหายส่วนแรก"], motorExclusions, ["ทะเบียนรถ", "ภาพรถตามเกณฑ์"]),
+  createPlan("motor-taweekoon", "motor", "รถ", "มิตรแท้ทวีคูณ", "ผลิตภัณฑ์รถยนต์สำเร็จรูปตามเงื่อนไขและกลุ่มรถที่บริษัทกำหนด", ["ผู้ต้องการแผนรถยนต์แบบกำหนดชุดความคุ้มครอง", "รถที่อยู่ในเกณฑ์รับประกันของแผน"], ["ความคุ้มครองรถและคู่กรณีตามประเภทของแผน", "วงเงินผู้ขับขี่และผู้โดยสารตามตาราง"], ["รุ่นรถ อายุรถ และแผนย่อย", "ทุนประกันและประวัติเคลม"], motorExclusions, ["ทะเบียนรถ", "รายละเอียดแผนที่ต้องการ"]),
+  createPlan("motor-permpoon3", "motor", "3+", "มิตรแท้เพิ่มพูน 3+", "แผน 3+ สำหรับผู้ต้องการคุ้มครองการชนกับยานพาหนะในงบประหยัด", ["รถอายุหลายปี", "ผู้ไม่ต้องการความคุ้มครองสูญหายและไฟไหม้"], ["ชนกับยานพาหนะที่ระบุคู่กรณีได้", "ความรับผิดต่อคู่กรณี", "ผู้ขับขี่และผู้โดยสารตามตาราง"], ["รุ่นรถ อายุรถ และทุนชน", "ค่าเสียหายส่วนแรก"], motorExclusions, ["ทะเบียนรถ", "ภาพรถถ้ากำหนด"]),
+
+  createPlan("residential-fire", "property", "บ้าน", "อัคคีภัยที่อยู่อาศัย", "ดูแลตัวบ้านและทรัพย์สินจากไฟไหม้และภัยที่เลือกเพิ่มเติม", ["เจ้าของบ้าน ทาวน์โฮม และคอนโด", "ผู้กู้ที่ต้องทำประกันอัคคีภัย"], ["ไฟไหม้ ฟ้าผ่า และระเบิดจากแก๊สเพื่ออยู่อาศัย", "ภัยเพิ่มเติม เช่น ลมพายุ น้ำท่วม หรือแผ่นดินไหวเมื่อระบุ", "ตัวอาคารและทรัพย์สินตามทุนประกัน"], ["มูลค่าสิ่งปลูกสร้างไม่รวมที่ดิน", "ประเภทวัสดุและอายุอาคาร", "สถานที่ตั้งและภัยเพิ่มเติม"], propertyExclusions, ["รูปและที่อยู่ทรัพย์สิน", "รายละเอียดอาคาร", "ทุนประกัน"]),
+  createPlan("home", "property", "บ้าน", "ประกันภัยบ้านมิตรแท้", "แพ็กเกจบ้านที่รวมภัยต่ออาคารและทรัพย์สินตามแผน", ["เจ้าของและผู้อยู่อาศัย", "ผู้ต้องการแพ็กเกจเข้าใจง่าย"], ["อัคคีภัยและภัยเพิ่มเติมตามแผน", "ทรัพย์สินภายในตามวงเงิน", "ความรับผิดหรือค่าใช้จ่ายเพิ่มเติมเมื่อระบุ"], ["ประเภทบ้าน พื้นที่ใช้สอย และมูลค่า", "วงเงินทรัพย์สินภายใน", "ประวัติความเสียหาย"], propertyExclusions, ["ที่อยู่และภาพบ้าน", "รายการทรัพย์สินสำคัญ"]),
+  createPlan("property-risk", "property", "ทรัพย์", "ประกันภัยความเสี่ยงภัยทรัพย์สิน", "ความคุ้มครองทรัพย์สินแบบครอบคลุมความเสี่ยงตามข้อยกเว้น", ["อาคารพาณิชย์ โรงงาน หรือทรัพย์สินมูลค่าสูง", "ผู้ต้องการความคุ้มครองกว้างกว่าอัคคีภัย"], ["ความเสียหายทางกายภาพจากเหตุฉับพลันที่ไม่ถูกยกเว้น", "อาคาร เครื่องจักร สต็อก และทรัพย์สินที่ระบุ", "ภัยธรรมชาติเมื่อกำหนดในกรมธรรม์"], ["ประเภทกิจการและการใช้อาคาร", "มูลค่าทดแทนทรัพย์สิน", "ระบบป้องกันภัยและประวัติความเสียหาย"], propertyExclusions, ["รายการทรัพย์สิน", "แผนผัง/ภาพสถานที่", "มาตรการป้องกันภัย"]),
+  createPlan("construction", "property", "CAR", "ประกันภัยงานก่อสร้าง", "ดูแลงานระหว่างก่อสร้าง วัสดุ เครื่องมือ และความรับผิดต่อบุคคลภายนอก", ["ผู้รับเหมา เจ้าของโครงการ และผู้ว่าจ้าง", "งานก่อสร้างหรือติดตั้งที่มีระยะเวลาแน่นอน"], ["ความเสียหายต่องานก่อสร้างจากอุบัติเหตุ", "วัสดุและเครื่องจักรที่ระบุ", "ความรับผิดต่อบุคคลภายนอกเมื่อซื้อความคุ้มครอง"], ["มูลค่าและระยะเวลาโครงการ", "ลักษณะงาน สถานที่ และวิธีการก่อสร้าง", "ประสบการณ์ผู้รับเหมา"], propertyExclusions, ["สัญญาก่อสร้าง", "BOQ และแผนงาน", "แบบโครงการ/รูปสถานที่"]),
+
+  createPlan("pa1", "personal", "อบ.1", "อุบัติเหตุส่วนบุคคล อบ.1", "คุ้มครองการเสียชีวิต สูญเสียอวัยวะ ทุพพลภาพ และค่ารักษาจากอุบัติเหตุ", ["บุคคลทั่วไปและครอบครัว", "ผู้ต้องการเงินสำรองจากอุบัติเหตุ"], ["เสียชีวิต สูญเสียอวัยวะ สายตา หรือทุพพลภาพตามตาราง", "ค่ารักษาพยาบาลจากอุบัติเหตุเมื่อเลือก", "ความคุ้มครองเพิ่มเติมตามแผน"], ["อายุ อาชีพ และชั้นอาชีพ", "วงเงินผลประโยชน์", "กิจกรรมและความเสี่ยง"], personalExclusions, ["บัตรประชาชน", "ข้อมูลอาชีพ", "ผู้รับผลประโยชน์"]),
+  createPlan("pa2", "personal", "อบ.2", "อุบัติเหตุส่วนบุคคล อบ.2", "เพิ่มนิยามความสูญเสียหรือทุพพลภาพตามเงื่อนไขแบบ อบ.2", ["ผู้ต้องการขอบเขตผลประโยชน์อุบัติเหตุที่ละเอียดขึ้น", "องค์กรที่จัดสวัสดิการกลุ่ม"], ["ผลประโยชน์อุบัติเหตุตามข้อตกลง อบ.2", "ค่ารักษาพยาบาลและผลประโยชน์เสริมเมื่อเลือก", "คุ้มครองตลอด 24 ชั่วโมงตามอาณาเขต"], ["อายุ อาชีพ จำนวนคน และวงเงิน", "ลักษณะงานและประวัติสินไหม"], personalExclusions, ["ข้อมูลผู้เอาประกัน", "รายชื่อสมาชิกกรณีกลุ่ม"]),
+  createPlan("income-hospital", "personal", "รพ.", "ชดเชยรายได้กรณีเข้ารักษาจากอุบัติเหตุ", "รับเงินชดเชยรายวันเมื่อเข้ารักษาในโรงพยาบาลจากอุบัติเหตุ", ["พนักงาน อาชีพอิสระ และเจ้าของกิจการ", "ผู้มีรายได้ที่อาจหยุดชะงักเมื่อพักรักษา"], ["เงินชดเชยรายวันตามจำนวนวันที่เข้าเกณฑ์", "ผลประโยชน์ตามแผนและระยะเวลาสูงสุด", "ความคุ้มครองเฉพาะเหตุจากอุบัติเหตุ"], ["อายุ อาชีพ และจำนวนเงินชดเชยต่อวัน", "ระยะเวลาคุ้มครอง"], personalExclusions, ["บัตรประชาชน", "ข้อมูลอาชีพ", "เอกสารทางการแพทย์เมื่อเคลม"]),
+  createPlan("golf", "personal", "Golf", "ประกันภัยสำหรับผู้เล่นกอล์ฟ", "ดูแลอุบัติเหตุ ความรับผิด และอุปกรณ์ระหว่างเล่นกอล์ฟตามแผน", ["นักกอล์ฟสมัครเล่น", "ผู้เล่นในสนามที่กำหนดตามเงื่อนไข"], ["อุบัติเหตุส่วนบุคคลระหว่างเล่น", "ความรับผิดต่อบุคคลภายนอก", "อุปกรณ์กอล์ฟและรางวัล Hole-in-One เมื่อระบุ"], ["อายุผู้เล่นและวงเงิน", "ขอบเขตสนามและจำนวนครั้งเล่น"], personalExclusions, ["ข้อมูลผู้เอาประกัน", "รายละเอียดอุปกรณ์เมื่อกำหนด"]),
+
+  createPlan("sme", "business", "SME", "ร้านค้าและผู้ประกอบการขนาดย่อม", "แพ็กเกจทรัพย์สิน กระจก เงินสด และความรับผิดต่อบุคคลภายนอก", ["ร้านค้า สำนักงาน และกิจการขนาดเล็ก", "ธุรกิจที่มีลูกค้าเข้าพื้นที่"], ["ไฟไหม้และภัยเพิ่มเติมตามแผน", "กระจกติดตั้ง เงินสด และทรัพย์สินตามวงเงิน", "ความรับผิดต่อชีวิต ร่างกาย และทรัพย์สินบุคคลภายนอก"], ["ประเภทธุรกิจ ที่ตั้ง และโครงสร้างอาคาร", "มูลค่าทรัพย์สินและเงินสด", "ระบบดับเพลิงและประวัติความเสียหาย"], propertyExclusions, ["ทะเบียน/ข้อมูลกิจการ", "ภาพสถานที่", "รายการและมูลค่าทรัพย์สิน"]),
+  createPlan("public-liability", "business", "PL", "ความรับผิดต่อบุคคลภายนอก", "คุ้มครองความรับผิดตามกฎหมายจากการดำเนินงานหรือสถานที่", ["ธุรกิจที่มีลูกค้า ผู้มาติดต่อ หรือผู้รับเหมา", "เจ้าของสถานที่และผู้จัดกิจกรรม"], ["บาดเจ็บ เจ็บป่วย หรือเสียชีวิตของบุคคลภายนอก", "ความเสียหายต่อทรัพย์สินบุคคลภายนอก", "ค่าใช้จ่ายต่อสู้คดีตามเงื่อนไข"], ["ประเภทธุรกิจ รายได้ และจำนวนผู้ใช้พื้นที่", "วงเงินต่อครั้งและตลอดปี", "ประวัติการเรียกร้อง"], ["ความรับผิดตามสัญญาที่เกินกฎหมาย", "ความเสียหายต่อพนักงานหรือทรัพย์สินในความดูแล", "มลภาวะและความเสี่ยงวิชาชีพ เว้นแต่ระบุ"], ["ข้อมูลกิจการ", "สัญญาที่เกี่ยวข้อง", "มาตรการความปลอดภัย"]),
+  createPlan("carrier", "business", "ขนส่ง", "ประกันภัยสำหรับผู้ขนส่ง", "คุ้มครองความรับผิดของผู้ขนส่งต่อสินค้าที่รับขน", ["ผู้ประกอบการรถขนส่งและโลจิสติกส์", "ธุรกิจที่รับผิดชอบสินค้าของลูกค้า"], ["ความสูญเสียหรือเสียหายต่อสินค้าตามความรับผิด", "เหตุจากการขนส่งตามภัยที่ระบุ", "ค่าใช้จ่ายที่เกี่ยวข้องตามเงื่อนไข"], ["ชนิดสินค้า เส้นทาง และมูลค่าต่อเที่ยว", "ชนิดรถและจำนวนเที่ยว", "ประวัติความเสียหาย"], ["การบรรจุหีบห่อไม่เหมาะสม", "การเสื่อมสภาพตามธรรมชาติ", "สินค้าต้องห้ามหรือไม่ได้แจ้ง"], ["ทะเบียนรถขนส่ง", "ชนิดและมูลค่าสินค้า", "เส้นทาง"]),
+  createPlan("inland-named", "business", "Cargo", "ขนส่งภายในประเทศแบบระบุภัย", "คุ้มครองสินค้าเฉพาะภัยที่ระบุระหว่างขนส่งภายในประเทศ", ["เจ้าของสินค้าที่ต้องการกำหนดภัยชัดเจน", "การขนส่งเป็นเที่ยวหรือรายปี"], ["ไฟไหม้ ระเบิด รถคว่ำ/ชน หรือภัยที่ระบุ", "สินค้าในระหว่างการขนส่งตามเส้นทาง"], ["ชนิดสินค้า มูลค่า และวิธีบรรจุ", "เส้นทางและยานพาหนะ", "ภัยที่เลือก"], ["ภัยที่ไม่ได้ระบุ", "ความเสียหายจากบรรจุภัณฑ์ไม่เพียงพอ", "การล่าช้าและการเสื่อมสภาพ"], ["ใบกำกับสินค้า", "รายละเอียดเส้นทาง", "วิธีบรรจุ"]),
+  createPlan("inland-allrisk", "business", "Cargo", "ขนส่งภายในประเทศแบบความเสี่ยงภัยทุกชนิด", "คุ้มครองความสูญเสียหรือเสียหายจากเหตุภายนอกที่ไม่ถูกยกเว้น", ["สินค้ามูลค่าสูงหรือมีความเสี่ยงหลายรูปแบบ", "ผู้ต้องการขอบเขตกว้างกว่าแบบระบุภัย"], ["ความเสียหายจากเหตุภายนอกระหว่างขนส่ง", "การยกขนและช่วงคุ้มครองตามที่ตกลง", "ภัยธรรมชาติตามข้อกำหนด"], ["ชนิดสินค้า มูลค่า บรรจุภัณฑ์", "เส้นทาง พาหนะ และประวัติเคลม"], ["การเสื่อมสภาพในตัวสินค้า", "การบรรจุไม่เหมาะสม", "การล่าช้าหรือสูญเสียตลาด"], ["Invoice/Packing list", "เส้นทางและพาหนะ", "ภาพบรรจุภัณฑ์"]),
+  createPlan("gold-shop", "business", "ทอง", "ประกันภัยร้านทอง", "ความคุ้มครองเฉพาะสำหรับทองคำ เงินสด ทรัพย์สิน และความเสี่ยงของร้าน", ["ร้านทองและผู้ประกอบการค้าทอง", "กิจการที่มีทรัพย์สินมูลค่าสูงและเสี่ยงโจรกรรม"], ["ทรัพย์สินภายในสถานที่ตามภัยที่ตกลง", "การโจรกรรมหรือชิงทรัพย์ตามเงื่อนไข", "เงินสด กระจก และความรับผิดเมื่อระบุ"], ["มูลค่าสต็อกสูงสุด ระบบรักษาความปลอดภัย", "ที่ตั้ง เวลาเปิด และวิธีขนย้าย", "ประวัติความเสียหาย"], ["การทุจริตของพนักงาน เว้นแต่ซื้อเพิ่ม", "การขาดสต็อกที่พิสูจน์เหตุไม่ได้", "การขนส่งนอกเงื่อนไข"], ["ใบอนุญาต/ข้อมูลร้าน", "ระบบ CCTV และตู้นิรภัย", "มูลค่าสต็อก"]),
+
+  createPlan("drone", "specialty", "Drone", "ประกันภัยอากาศยานซึ่งไม่มีนักบิน", "ดูแลความรับผิดต่อบุคคลภายนอกและความเสียหายตามแผนสำหรับโดรน", ["ผู้ใช้โดรนส่วนบุคคลหรือเชิงพาณิชย์", "ช่างภาพ ผู้สำรวจ และธุรกิจบริการโดรน"], ["ความรับผิดต่อชีวิต ร่างกาย และทรัพย์สินบุคคลภายนอก", "ตัวโดรนตามข้อตกลงที่เลือก", "อุบัติเหตุจากการใช้งานที่ถูกต้องตามกฎหมาย"], ["รุ่น น้ำหนัก มูลค่า และวัตถุประสงค์", "พื้นที่บินและประสบการณ์ผู้ควบคุม", "วงเงินความรับผิด"], ["การบินผิดกฎหมายหรือในพื้นที่ห้ามบิน", "การใช้งานสงคราม แข่งขัน หรือเสี่ยงพิเศษ", "การสึกหรอและความขัดข้องเดิม"], ["เลขเครื่อง/รุ่นโดรน", "ใบอนุญาตและการขึ้นทะเบียน", "ข้อมูลผู้ควบคุม"]),
+  createPlan("fuel-station", "specialty", "สถานี", "ประกันภัยสถานีบริการเชื้อเพลิง", "วางแผนทรัพย์สิน ความรับผิด และความเสี่ยงเฉพาะของสถานีบริการ", ["สถานีบริการน้ำมัน LPG หรือ NGV", "ผู้ประกอบการที่มีถังและระบบเชื้อเพลิง"], ["อัคคีภัยและทรัพย์สินตามเงื่อนไข", "ความรับผิดต่อบุคคลภายนอก", "ความเสี่ยงเฉพาะระบบเชื้อเพลิงเมื่อระบุ"], ["ชนิดเชื้อเพลิง ความจุถัง และที่ตั้ง", "มาตรฐานระบบและการตรวจสอบ", "มูลค่าทรัพย์สินและรายได้"], ["การฝ่าฝืนมาตรฐานความปลอดภัย", "การรั่วไหลหรือมลภาวะที่ไม่ได้ซื้อเพิ่ม", "การเสื่อมสภาพของอุปกรณ์"], ["ใบอนุญาตสถานี", "แผนผังและระบบดับเพลิง", "รายงานตรวจสอบ"]),
+  createPlan("fuel-ctp", "specialty", "พ.ร.บ.", "พ.ร.บ. รถบรรทุก LPG / NGV / น้ำมัน", "ประกันภัยภาคบังคับสำหรับรถตามประเภทเชื้อเพลิงและการจดทะเบียน", ["รถบรรทุกหรือรถที่จดทะเบียนใช้ LPG, NGV หรือน้ำมัน", "ผู้ประกอบการที่ต้องต่อทะเบียนและภาษี"], ["ความคุ้มครองผู้ประสบภัยจากรถตามกฎหมาย", "ค่าเสียหายเบื้องต้นและผลประโยชน์ตามสถานะ"], ["ประเภทรถ น้ำหนัก และลักษณะการใช้", "ประเภทเชื้อเพลิงตามทะเบียน"], ["ไม่คุ้มครองตัวรถหรือสินค้า", "วงเงินเป็นไปตามกฎหมาย"], ["ทะเบียนรถ", "ข้อมูลประเภทเชื้อเพลิง"])
+];
+
+const vehicleLabels = {
+  sedan: "รถเก๋ง / Eco Car",
+  suv: "SUV / PPV",
+  pickup: "รถกระบะ",
+  ev: "รถยนต์ไฟฟ้า EV"
+};
+
+const coverageLabels = {
+  type1: "ประกันภัยรถยนต์ประเภท 1",
+  type2plus: "ประกันภัยรถยนต์ประเภท 2+",
+  type3plus: "ประกันภัยรถยนต์ประเภท 3+",
+  type3: "ประกันภัยรถยนต์ประเภท 3",
+  compulsory: "พ.ร.บ. เท่านั้น"
+};
+
+const usageLabels = {
+  personal: "ใช้ส่วนบุคคลทั่วไป",
+  frequent: "เดินทางบ่อย / ระยะทางสูง",
+  business: "ใช้ในกิจการ"
+};
+
+menuButton?.addEventListener("click", () => {
+  const isOpen = menuButton.getAttribute("aria-expanded") === "true";
+  menuButton.setAttribute("aria-expanded", String(!isOpen));
+  mainNavigation?.classList.toggle("is-open", !isOpen);
+});
+
+mainNavigation?.querySelectorAll("a").forEach((link) => {
+  link.addEventListener("click", () => {
+    menuButton?.setAttribute("aria-expanded", "false");
+    mainNavigation.classList.remove("is-open");
+  });
+});
+
+document.querySelectorAll(".profile-trigger").forEach((button) => {
+  button.addEventListener("click", () => {
+    const profile = profileData[button.dataset.profile];
+    if (!profile || !profileDialog) return;
+
+    document.querySelector("#profile-image").src = profile.image;
+    document.querySelector("#profile-image").alt = profile.name;
+    document.querySelector("#profile-name").textContent = profile.name;
+    document.querySelector("#profile-role").textContent = profile.role;
+    document.querySelector("#profile-summary").textContent = profile.summary;
+    document.querySelector("#profile-highlights").innerHTML = profile.highlights
+      .map((highlight) => `<span>${highlight}</span>`)
+      .join("");
+    document.querySelector("#profile-phone").href = `tel:${profile.phone}`;
+
+    profileDialog.showModal();
+  });
+});
+
+const categoryMeta = {
+  motor: {
+    title: "ประกันภัยรถยนต์",
+    description: "เลือกดูประเภท 1, 2, 3, 2+, 3+, พ.ร.บ. และแผนรถยนต์สำเร็จรูป พร้อมข้อมูลความคุ้มครองและปัจจัยกำหนดเบี้ย",
+    image: "assets/insurance-motor.png",
+    alt: "รถยนต์ริมทะเล สื่อถึงประกันภัยรถยนต์"
+  },
+  property: {
+    title: "บ้านและทรัพย์สิน",
+    description: "ข้อมูลประกันบ้าน อัคคีภัย ความเสี่ยงภัยทรัพย์สิน และงานก่อสร้าง เพื่อช่วยวางทุนประกันให้เหมาะกับทรัพย์สิน",
+    image: "assets/insurance-property.png",
+    alt: "บ้านสมัยใหม่ สื่อถึงประกันบ้านและทรัพย์สิน"
+  },
+  personal: {
+    title: "ประกันภัยบุคคล",
+    description: "วางแผนความคุ้มครองอุบัติเหตุ ค่ารักษา เงินชดเชยรายได้ และความเสี่ยงจากกิจกรรมส่วนบุคคล",
+    image: "assets/insurance-personal.png",
+    alt: "อุปกรณ์ความปลอดภัย สื่อถึงประกันภัยบุคคล"
+  },
+  business: {
+    title: "ประกันภัยธุรกิจ",
+    description: "ดูแลร้านค้า SME ความรับผิดต่อบุคคลภายนอก ผู้ขนส่ง สินค้าระหว่างขนส่ง และกิจการเฉพาะด้าน",
+    image: "assets/insurance-business.png",
+    alt: "ร้านค้าสมัยใหม่ สื่อถึงประกันภัยธุรกิจ"
+  },
+  specialty: {
+    title: "ประกันเฉพาะทาง",
+    description: "ข้อมูลความคุ้มครองสำหรับโดรน สถานีบริการเชื้อเพลิง และรถตามประเภทเชื้อเพลิงที่มีเงื่อนไขเฉพาะ",
+    image: "assets/insurance-specialty.png",
+    alt: "โดรนและอุปกรณ์เฉพาะทาง สื่อถึงประกันเฉพาะทาง"
+  }
+};
+
+const requestedCategory = new URLSearchParams(window.location.search).get("category");
+let activeInsuranceCategory = categoryMeta[requestedCategory] ? requestedCategory : "all";
+let insuranceSearchTerm = "";
+
+initializeInsurancePage();
+renderInsurancePlans();
+
+document.querySelectorAll(".insurance-tab").forEach((button) => {
+  button.addEventListener("click", () => {
+    activeInsuranceCategory = button.dataset.category;
+    document.querySelectorAll(".insurance-tab").forEach((tab) => {
+      const isActive = tab === button;
+      tab.classList.toggle("is-active", isActive);
+      tab.setAttribute("aria-selected", String(isActive));
+    });
+    renderInsurancePlans();
+  });
+});
+
+document.querySelector("#insurance-search")?.addEventListener("input", (event) => {
+  insuranceSearchTerm = event.target.value.trim().toLocaleLowerCase("th");
+  renderInsurancePlans();
+});
+
+document.querySelector("#plan-grid")?.addEventListener("click", (event) => {
+  const button = event.target.closest(".product-detail-trigger");
+  if (!button) return;
+  openProductDetail(button.dataset.product);
+});
+
+document.querySelector("#product-dialog-primary")?.addEventListener("click", () => {
+  productDialog?.close();
+});
+
+document.querySelectorAll(".dialog-close").forEach((button) => {
+  button.addEventListener("click", () => button.closest("dialog")?.close());
+});
+
+[profileDialog, productDialog, premiumDialog].forEach((dialog) => {
+  dialog?.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+});
+
+premiumCalculator?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const formData = new FormData(premiumCalculator);
+  const vehicleType = formData.get("vehicleType");
+  const coverageType = formData.get("coverageType");
+  const vehicleYear = Number(formData.get("vehicleYear"));
+  const vehicleValue = Number(formData.get("vehicleValue"));
+  const driverProfile = formData.get("driverProfile");
+
+  const estimate = calculatePremium({
+    vehicleType,
+    coverageType,
+    vehicleYear,
+    vehicleValue,
+    driverProfile
+  });
+
+  renderPremiumSummary({
+    vehicleType,
+    coverageType,
+    vehicleYear,
+    vehicleValue,
+    driverProfile,
+    estimate
+  });
+
+  premiumDialog?.showModal();
+});
+
+document.querySelector("#export-pdf")?.addEventListener("click", () => {
+  // ใช้ Print Dialog ของเบราว์เซอร์เพื่อบันทึกเป็น PDF โดยไม่เพิ่มไลบรารีขนาดใหญ่
+  window.print();
+});
+
+quoteForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  // เดโมนี้ไม่ส่งข้อมูลออกจากเบราว์เซอร์ ต้องเชื่อม API ก่อนใช้งานจริง
+  successMessage.hidden = false;
+  quoteForm.reset();
+});
+
+function calculatePremium({ vehicleType, coverageType, vehicleYear, vehicleValue, driverProfile }) {
+  if (coverageType === "compulsory") {
+    return { minimum: 650, maximum: 1300 };
+  }
+
+  const coverageRates = {
+    type1: { rate: 0.024, minimum: 10500 },
+    type2plus: { rate: 0.011, minimum: 6500 },
+    type3plus: { rate: 0.007, minimum: 4800 },
+    type3: { rate: 0.004, minimum: 2800 }
+  };
+  const vehicleMultipliers = { sedan: 1, suv: 1.12, pickup: 1.08, ev: 1.22 };
+  const usageMultipliers = { personal: 1, frequent: 1.08, business: 1.14 };
+  const vehicleAge = Math.max(0, new Date().getFullYear() - vehicleYear);
+  const ageMultiplier = vehicleAge > 10 ? 1.12 : vehicleAge > 6 ? 1.06 : 1;
+  const config = coverageRates[coverageType];
+
+  // สูตรนี้ทำเพื่อแสดง UX ของ Demo เท่านั้น ไม่ใช่อัตราเบี้ยของบริษัท
+  const basePremium = Math.max(
+    config.minimum,
+    vehicleValue * config.rate * vehicleMultipliers[vehicleType] * usageMultipliers[driverProfile] * ageMultiplier
+  );
+
+  return {
+    minimum: roundToHundred(basePremium * 0.9),
+    maximum: roundToHundred(basePremium * 1.12)
+  };
+}
+
+function renderPremiumSummary(data) {
+  const thaiDate = new Intl.DateTimeFormat("th-TH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  }).format(new Date());
+  const documentNumber = `MS-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${String(Date.now()).slice(-4)}`;
+
+  document.querySelector("#summary-number").textContent = documentNumber;
+  document.querySelector("#summary-date").textContent = thaiDate;
+  document.querySelector("#summary-details").innerHTML = `
+    <div><span>ประเภทรถ</span><strong>${vehicleLabels[data.vehicleType]}</strong></div>
+    <div><span>ประเภทความคุ้มครอง</span><strong>${coverageLabels[data.coverageType]}</strong></div>
+    <div><span>ปีจดทะเบียน</span><strong>${data.vehicleYear}</strong></div>
+    <div><span>มูลค่ารถโดยประมาณ</span><strong>${formatCurrency(data.vehicleValue)}</strong></div>
+    <div><span>ลักษณะการใช้งาน</span><strong>${usageLabels[data.driverProfile]}</strong></div>
+    <div><span>สถานะเอกสาร</span><strong>ประมาณการเบื้องต้น</strong></div>
+  `;
+  document.querySelector("#summary-price").textContent =
+    `${formatCurrency(data.estimate.minimum)} – ${formatCurrency(data.estimate.maximum)}`;
+}
+
+function formatCurrency(value) {
+  return `${new Intl.NumberFormat("th-TH").format(value)} บาท`;
+}
+
+function roundToHundred(value) {
+  return Math.round(value / 100) * 100;
+}
+
+function createPlan(id, category, icon, title, lead, audience, coverage, premium, exclusions, preparation) {
+  return {
+    id,
+    category,
+    icon,
+    title,
+    lead,
+    audience,
+    coverage,
+    premium,
+    exclusions,
+    preparation,
+    premiumLabel: category === "motor" && id === "motor-compulsory"
+      ? "อัตราตามประเภทรถ"
+      : "คำนวณตามข้อมูลจริง"
+  };
+}
+
+function renderInsurancePlans() {
+  const planGrid = document.querySelector("#plan-grid");
+  const planEmpty = document.querySelector("#plan-empty");
+  if (!planGrid) return;
+
+  const visiblePlans = insurancePlans.filter((plan) => {
+    const matchesCategory = activeInsuranceCategory === "all" || plan.category === activeInsuranceCategory;
+    const searchableText = `${plan.title} ${plan.lead} ${plan.icon}`.toLocaleLowerCase("th");
+    return matchesCategory && searchableText.includes(insuranceSearchTerm);
+  });
+
+  document.querySelector("#plan-count").textContent = visiblePlans.length;
+  planEmpty.hidden = visiblePlans.length > 0;
+  planGrid.innerHTML = visiblePlans.map((plan) => `
+    <article class="plan-card">
+      <img class="plan-card__image" src="${categoryMeta[plan.category].image}" alt="" loading="lazy">
+      <div class="plan-card__header">
+        <span class="plan-card__icon">${plan.icon}</span>
+        <span class="plan-card__category">${getCategoryLabel(plan.category)}</span>
+      </div>
+      <h3>${plan.title}</h3>
+      <p>${plan.lead}</p>
+      <div class="plan-card__premium">
+        <span>แนวทางเบี้ยประกัน</span>
+        <strong>${plan.premiumLabel}</strong>
+      </div>
+      <button class="product-detail-trigger" type="button" data-product="${plan.id}">
+        เปิดข้อมูลฉบับเต็ม <span aria-hidden="true">→</span>
+      </button>
+    </article>
+  `).join("");
+}
+
+function initializeInsurancePage() {
+  if (!document.body.classList.contains("insurance-page")) return;
+
+  const category = categoryMeta[activeInsuranceCategory] ? activeInsuranceCategory : "motor";
+  activeInsuranceCategory = category;
+  const meta = categoryMeta[category];
+  document.title = `${meta.title} | Mittare Sattahip`;
+  document.querySelector("#category-page-title").textContent = meta.title;
+  document.querySelector("#category-page-description").textContent = meta.description;
+  const heroImage = document.querySelector("#category-hero-image");
+  heroImage.src = meta.image;
+  heroImage.alt = meta.alt;
+
+  document.querySelectorAll("[data-page-category], [data-nav-category]").forEach((link) => {
+    const isActive = link.dataset.pageCategory === category || link.dataset.navCategory === category;
+    link.classList.toggle("is-active", isActive);
+    if (isActive) link.setAttribute("aria-current", "page");
+  });
+}
+
+function openProductDetail(productId) {
+  const product = insurancePlans.find((plan) => plan.id === productId);
+  if (!product || !productDialog) return;
+
+  document.querySelector("#product-dialog-icon").textContent = product.icon;
+  document.querySelector("#product-dialog-title").textContent = product.title;
+  document.querySelector("#product-dialog-lead").textContent = product.lead;
+  renderList("#product-dialog-audience", product.audience);
+  renderList("#product-dialog-coverage", product.coverage);
+  renderList("#product-dialog-premium", product.premium);
+  renderList("#product-dialog-exclusions", product.exclusions);
+  renderList("#product-dialog-preparation", product.preparation);
+
+  const primaryButton = document.querySelector("#product-dialog-primary");
+  primaryButton.hidden = product.category !== "motor";
+  productDialog.showModal();
+}
+
+function getCategoryLabel(category) {
+  return {
+    motor: "รถยนต์",
+    property: "บ้านและทรัพย์สิน",
+    personal: "บุคคล",
+    business: "ธุรกิจ",
+    specialty: "เฉพาะทาง"
+  }[category];
+}
+
+function renderList(selector, items) {
+  document.querySelector(selector).innerHTML = items
+    .map((item) => `<li>${item}</li>`)
+    .join("");
+}
+
+document.querySelector("#current-year").textContent = new Date().getFullYear();
