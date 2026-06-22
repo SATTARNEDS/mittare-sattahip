@@ -821,4 +821,122 @@ function renderList(selector, items) {
     .join("");
 }
 
+function initializeMotionEffects() {
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const supportsHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const progressBar = document.querySelector(".scroll-progress span");
+  const siteHeader = document.querySelector(".site-header");
+  const hero = document.querySelector(".hero");
+  const heroImage = document.querySelector(".hero__image");
+  const cursorGlow = document.querySelector(".cursor-glow");
+
+  document.body.classList.add("motion-ready");
+
+  const revealGroups = [
+    [".premium-check__intro", "left"],
+    [".premium-calculator", "right"],
+    [".section-heading > *", "up"],
+    [".category-card", "up"],
+    [".why-us__visual", "left"],
+    [".why-us__content", "right"],
+    [".benefit-list li", "up"],
+    [".leader-card", "up"],
+    [".emergency__inner > *", "up"],
+    [".quote__content", "left"],
+    [".quote-form", "right"]
+  ];
+
+  revealGroups.forEach(([selector, direction]) => {
+    document.querySelectorAll(selector).forEach((element, index) => {
+      element.dataset.reveal = direction;
+      element.style.setProperty("--reveal-delay", `${Math.min(index * 90, 360)}ms`);
+    });
+  });
+
+  if (reduceMotion) {
+    document.querySelectorAll("[data-reveal]").forEach((element) => {
+      element.classList.add("is-visible");
+      element.removeAttribute("data-reveal");
+    });
+    return;
+  }
+
+  const revealObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add("is-visible");
+      observer.unobserve(entry.target);
+
+      // คืน transform ให้เอฟเฟกต์ tilt หลัง reveal จบ
+      const revealDelay = Number.parseInt(entry.target.style.getPropertyValue("--reveal-delay"), 10) || 0;
+      window.setTimeout(() => {
+        entry.target.removeAttribute("data-reveal");
+        entry.target.classList.remove("is-visible");
+      }, revealDelay + 850);
+    });
+  }, { threshold: 0.14, rootMargin: "0px 0px -8% 0px" });
+
+  document.querySelectorAll("[data-reveal]").forEach((element) => revealObserver.observe(element));
+
+  let scrollFrame;
+  const updateScrollEffects = () => {
+    scrollFrame = null;
+    const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = documentHeight > 0 ? window.scrollY / documentHeight : 0;
+    progressBar?.style.setProperty("transform", `scaleX(${Math.min(Math.max(progress, 0), 1)})`);
+    siteHeader?.classList.toggle("is-scrolled", window.scrollY > 24);
+
+    if (hero && heroImage) {
+      const heroProgress = Math.min(window.scrollY / Math.max(hero.offsetHeight, 1), 1);
+      heroImage.style.setProperty("--hero-y", `${heroProgress * 42}px`);
+    }
+  };
+
+  window.addEventListener("scroll", () => {
+    if (!scrollFrame) scrollFrame = requestAnimationFrame(updateScrollEffects);
+  }, { passive: true });
+  updateScrollEffects();
+
+  if (!supportsHover) return;
+
+  let pointerFrame;
+  window.addEventListener("pointermove", (event) => {
+    if (pointerFrame) cancelAnimationFrame(pointerFrame);
+    pointerFrame = requestAnimationFrame(() => {
+      cursorGlow?.classList.add("is-visible");
+      cursorGlow?.style.setProperty("transform", `translate3d(${event.clientX - 130}px, ${event.clientY - 130}px, 0)`);
+
+      if (hero?.contains(event.target) && heroImage) {
+        const x = (event.clientX / window.innerWidth - .5) * -18;
+        const y = (event.clientY / window.innerHeight - .5) * -12;
+        heroImage.style.setProperty("--hero-x", `${x}px`);
+        heroImage.style.setProperty("--hero-y", `${y + Math.min(window.scrollY * .05, 42)}px`);
+      }
+    });
+  }, { passive: true });
+
+  document.documentElement.addEventListener("mouseleave", () => cursorGlow?.classList.remove("is-visible"));
+
+  document.querySelectorAll(".category-card, .leader-card__photo").forEach((card) => {
+    card.addEventListener("pointermove", (event) => {
+      const bounds = card.getBoundingClientRect();
+      const relativeX = (event.clientX - bounds.left) / bounds.width;
+      const relativeY = (event.clientY - bounds.top) / bounds.height;
+      card.style.setProperty("--tilt-x", `${(relativeY - .5) * -7}deg`);
+      card.style.setProperty("--tilt-y", `${(relativeX - .5) * 7}deg`);
+      card.style.setProperty("--glow-x", `${relativeX * 100}%`);
+      card.style.setProperty("--glow-y", `${relativeY * 100}%`);
+    });
+
+    card.addEventListener("pointerleave", () => {
+      card.style.removeProperty("--tilt-x");
+      card.style.removeProperty("--tilt-y");
+      card.style.removeProperty("--glow-x");
+      card.style.removeProperty("--glow-y");
+    });
+  });
+}
+
+initializeMotionEffects();
+
 document.querySelector("#current-year").textContent = new Date().getFullYear();
