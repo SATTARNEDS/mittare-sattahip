@@ -141,6 +141,8 @@ const officialProductUrls = {
 
 let activeDocumentImages = [];
 let activeDocumentImageIndex = 0;
+let activeDocumentPdfUrl = "";
+let activeDocumentTitle = "";
 
 const officialRateSources = {
   compulsory: {
@@ -345,10 +347,14 @@ pdfDialog?.addEventListener("close", () => {
   if (viewer) viewer.removeAttribute("src");
   activeDocumentImages = [];
   activeDocumentImageIndex = 0;
+  activeDocumentPdfUrl = "";
+  activeDocumentTitle = "";
 });
 
 document.querySelector("#document-previous")?.addEventListener("click", () => changeDocumentImage(-1));
 document.querySelector("#document-next")?.addEventListener("click", () => changeDocumentImage(1));
+document.querySelector("#document-show-images")?.addEventListener("click", showDocumentImages);
+document.querySelector("#document-show-pdf")?.addEventListener("click", showDocumentPdf);
 pdfDialog?.addEventListener("keydown", (event) => {
   if (event.key === "ArrowLeft") changeDocumentImage(-1);
   if (event.key === "ArrowRight") changeDocumentImage(1);
@@ -964,12 +970,17 @@ function openPlanDocument(planId) {
     return;
   }
 
-  if (media.pdfUrl) {
-    openPdfDocument(media.pdfUrl, product.title);
+  activeDocumentImages = media.imageUrls;
+  activeDocumentImageIndex = 0;
+  activeDocumentPdfUrl = media.pdfUrl;
+  activeDocumentTitle = product.title;
+
+  if (media.imageUrls.length) {
+    openImageDocument(media.imageUrls, product.title, media.pdfUrl);
     return;
   }
 
-  openImageDocument(media.imageUrls, product.title);
+  openPdfDocument(media.pdfUrl, product.title);
 }
 
 function openPdfDocument(documentUrl, documentTitle) {
@@ -977,30 +988,70 @@ function openPdfDocument(documentUrl, documentTitle) {
   const gallery = document.querySelector("#document-gallery");
   const title = document.querySelector("#pdf-dialog-title");
   const status = document.querySelector("#document-page-status");
+  const modeSwitch = document.querySelector("#document-mode-switch");
   if (!documentUrl || !viewer || !pdfDialog) return;
 
+  activeDocumentPdfUrl = documentUrl;
+  activeDocumentTitle = documentTitle;
   title.textContent = documentTitle;
   status.textContent = "เอกสาร PDF";
+  modeSwitch.hidden = !activeDocumentImages.length;
   gallery.hidden = true;
   viewer.hidden = false;
   viewer.src = documentUrl;
+  updateDocumentModeButtons("pdf");
   pdfDialog.showModal();
 }
 
-function openImageDocument(imageUrls, documentTitle) {
+function openImageDocument(imageUrls, documentTitle, pdfUrl = "") {
   const viewer = document.querySelector("#pdf-viewer");
   const gallery = document.querySelector("#document-gallery");
   const title = document.querySelector("#pdf-dialog-title");
+  const modeSwitch = document.querySelector("#document-mode-switch");
   if (!imageUrls.length || !gallery || !pdfDialog) return;
 
   activeDocumentImages = imageUrls;
   activeDocumentImageIndex = 0;
+  activeDocumentPdfUrl = pdfUrl;
+  activeDocumentTitle = documentTitle;
   title.textContent = documentTitle;
+  modeSwitch.hidden = !pdfUrl;
   viewer.hidden = true;
   viewer.removeAttribute("src");
   gallery.hidden = false;
   renderDocumentImage();
+  updateDocumentModeButtons("images");
   pdfDialog.showModal();
+}
+
+function showDocumentImages() {
+  if (!activeDocumentImages.length) return;
+
+  const viewer = document.querySelector("#pdf-viewer");
+  const gallery = document.querySelector("#document-gallery");
+  viewer.hidden = true;
+  viewer.removeAttribute("src");
+  gallery.hidden = false;
+  renderDocumentImage();
+  updateDocumentModeButtons("images");
+}
+
+function showDocumentPdf() {
+  if (!activeDocumentPdfUrl) return;
+
+  const viewer = document.querySelector("#pdf-viewer");
+  const gallery = document.querySelector("#document-gallery");
+  const status = document.querySelector("#document-page-status");
+  gallery.hidden = true;
+  viewer.hidden = false;
+  viewer.src = activeDocumentPdfUrl;
+  status.textContent = "เอกสาร PDF";
+  updateDocumentModeButtons("pdf");
+}
+
+function updateDocumentModeButtons(activeMode) {
+  document.querySelector("#document-show-images")?.classList.toggle("is-active", activeMode === "images");
+  document.querySelector("#document-show-pdf")?.classList.toggle("is-active", activeMode === "pdf");
 }
 
 function changeDocumentImage(direction) {
