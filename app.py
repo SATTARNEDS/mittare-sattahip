@@ -4,6 +4,8 @@ import json
 import os
 import secrets
 import sqlite3
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -37,6 +39,7 @@ def create_app() -> Flask:
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-before-production")
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
     app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD", "admin123")
+    app.config["LINE_CHANNEL_ACCESS_TOKEN"] = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
 
     INSTANCE_DIR.mkdir(exist_ok=True)
     UPLOAD_DIR.mkdir(exist_ok=True)
@@ -77,7 +80,10 @@ def create_app() -> Flask:
 
     @app.get("/api/session")
     def get_session():
-        return jsonify({"authenticated": is_authenticated()})
+        return jsonify({
+            "authenticated": is_authenticated(),
+            "linePushConfigured": bool(app.config["LINE_CHANNEL_ACCESS_TOKEN"]),
+        })
 
     @app.post("/api/session")
     def login():
@@ -120,18 +126,19 @@ def create_app() -> Flask:
             cursor = db.execute(
                 """
                 INSERT INTO policies (
-                  public_ref, customer_name, customer_phone, line_name, assigned_agent,
+                  public_ref, customer_name, customer_phone, line_name, line_user_id, assigned_agent,
                   insurance_category, product_name, policy_number, insurer_name,
                   start_date, end_date, premium_amount, sales_status, next_follow_up,
                   customer_notes, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     public_ref,
                     payload["customer_name"],
                     payload["customer_phone"],
                     payload["line_name"],
+                    payload["line_user_id"],
                     payload["assigned_agent"],
                     payload["insurance_category"],
                     payload["product_name"],
@@ -163,7 +170,7 @@ def create_app() -> Flask:
             db.execute(
                 """
                 UPDATE policies
-                SET customer_name = ?, customer_phone = ?, line_name = ?, assigned_agent = ?,
+                SET customer_name = ?, customer_phone = ?, line_name = ?, line_user_id = ?, assigned_agent = ?,
                     insurance_category = ?, product_name = ?, policy_number = ?, insurer_name = ?,
                     start_date = ?, end_date = ?, premium_amount = ?, sales_status = ?,
                     next_follow_up = ?, customer_notes = ?, updated_at = ?
@@ -173,6 +180,7 @@ def create_app() -> Flask:
                     payload["customer_name"],
                     payload["customer_phone"],
                     payload["line_name"],
+                    payload["line_user_id"],
                     payload["assigned_agent"],
                     payload["insurance_category"],
                     payload["product_name"],
@@ -212,6 +220,51 @@ def create_app() -> Flask:
             db.execute("DELETE FROM attachments WHERE id = ?", (attachment_id,))
         delete_upload_file(attachment["stored_filename"])
         return jsonify({"ok": True})
+
+    @app.post("/api/policies/<int:policy_id>/line-push")
+    @require_admin
+    def push_line_policy_message(policy_id: int):
+        token = app.config["LINE_CHANNEL_ACCESS_TOKEN"]
+        if not token:
+            return jsonify({"error": "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์"}), 400
+
+        data = request.get_json(silent=True) or {}
+        message = str(data.get("message", "")).strip()
+        if not message:
+            raise BadRequest("กรุณาสร้างข้อความก่อนส่ง LINE Push")
+
+        with get_db() as db:
+            policy = db.execute("SELECT * FROM policies WHERE id = ?", (policy_id,)).fetchone()
+            if not policy:
+                return jsonify({"error": "ไม่พบกรมธรรม์"}), 404
+            line_user_id = str(policy["line_user_id"] or "").strip()
+            if not line_user_id:
+                return jsonify({"error": "ยังไม่มี LINE User ID ของลูกค้ารายนี้"}), 400
+
+            try:
+                response_payload = send_line_push_message(token, line_user_id, message)
+                status = "sent"
+                error_message = ""
+            except BadRequest:
+                raise
+            except Exception as error:
+                response_payload = {}
+                status = "failed"
+                error_message = str(error)
+
+            db.execute(
+                """
+                INSERT INTO line_message_logs (
+                  policy_id, line_user_id, message, status, error_message, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (policy_id, line_user_id, message, status, error_message, utc_now()),
+            )
+
+        if status == "failed":
+            return jsonify({"error": f"ส่ง LINE Push ไม่สำเร็จ: {error_message}"}), 502
+        return jsonify({"ok": True, "lineResponse": response_payload})
 
     @app.get("/api/public/product-media")
     def public_product_media():
@@ -398,6 +451,7 @@ def initialize_database() -> None:
               customer_name TEXT NOT NULL,
               customer_phone TEXT NOT NULL,
               line_name TEXT DEFAULT '',
+              line_user_id TEXT DEFAULT '',
               assigned_agent TEXT DEFAULT '',
               insurance_category TEXT NOT NULL,
               product_name TEXT DEFAULT '',
@@ -436,13 +490,33 @@ def initialize_database() -> None:
               created_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS line_message_logs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              policy_id INTEGER NOT NULL,
+              line_user_id TEXT NOT NULL,
+              message TEXT NOT NULL,
+              status TEXT NOT NULL,
+              error_message TEXT DEFAULT '',
+              created_at TEXT NOT NULL,
+              FOREIGN KEY (policy_id) REFERENCES policies(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_policies_end_date ON policies(end_date);
             CREATE INDEX IF NOT EXISTS idx_policies_phone ON policies(customer_phone);
             CREATE INDEX IF NOT EXISTS idx_attachments_policy ON attachments(policy_id);
             CREATE INDEX IF NOT EXISTS idx_product_media_plan ON product_media(plan_id);
+            CREATE INDEX IF NOT EXISTS idx_line_message_logs_policy ON line_message_logs(policy_id);
             """
         )
+        ensure_column(db, "policies", "line_user_id", "TEXT DEFAULT ''")
     migrate_product_media_json_to_database()
+
+
+def ensure_column(db: sqlite3.Connection, table_name: str, column_name: str, column_definition: str) -> None:
+    columns = db.execute(f"PRAGMA table_info({table_name})").fetchall()
+    if any(column["name"] == column_name for column in columns):
+        return
+    db.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
 
 
 def policy_payload_from_request() -> dict[str, Any]:
@@ -457,6 +531,7 @@ def policy_payload_from_request() -> dict[str, Any]:
         "customer_name": customer_name,
         "customer_phone": customer_phone,
         "line_name": form.get("lineName", "").strip(),
+        "line_user_id": form.get("lineUserId", "").strip(),
         "assigned_agent": form.get("assignedAgent", "").strip(),
         "insurance_category": insurance_category,
         "product_name": form.get("productName", "").strip(),
@@ -676,6 +751,31 @@ def delete_product_media_file(stored_filename: str | None) -> None:
         target.unlink()
 
 
+def send_line_push_message(token: str, line_user_id: str, message: str) -> dict[str, Any]:
+    payload = json.dumps({
+        "to": line_user_id,
+        "messages": [{"type": "text", "text": message[:5000]}],
+    }).encode("utf-8")
+    line_request = urllib.request.Request(
+        "https://api.line.me/v2/bot/message/push",
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(line_request, timeout=12) as response:
+            content = response.read().decode("utf-8")
+            return json.loads(content) if content else {}
+    except urllib.error.HTTPError as error:
+        details = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(details or error.reason) from error
+    except urllib.error.URLError as error:
+        raise RuntimeError(str(error.reason)) from error
+
+
 def policy_to_dict(db: sqlite3.Connection, row: sqlite3.Row, include_private: bool) -> dict[str, Any]:
     policy = {
         "id": row["id"] if include_private else None,
@@ -683,6 +783,7 @@ def policy_to_dict(db: sqlite3.Connection, row: sqlite3.Row, include_private: bo
         "customerName": row["customer_name"],
         "customerPhone": row["customer_phone"] if include_private else mask_phone(row["customer_phone"]),
         "lineName": row["line_name"] if include_private else "",
+        "lineUserId": row["line_user_id"] if include_private else "",
         "assignedAgent": row["assigned_agent"],
         "insuranceCategory": row["insurance_category"],
         "productName": row["product_name"],
@@ -749,6 +850,7 @@ def seed_demo_rows(db: sqlite3.Connection) -> None:
             "customer_name": "สมชาย ใจดี",
             "customer_phone": "081-111-2222",
             "line_name": "somchai.line",
+            "line_user_id": "",
             "assigned_agent": "เทพา",
             "insurance_category": "รถยนต์",
             "product_name": "ประเภท 1",
@@ -766,6 +868,7 @@ def seed_demo_rows(db: sqlite3.Connection) -> None:
             "customer_name": "พิมพ์ชนก ร้านทะเล",
             "customer_phone": "089-333-4444",
             "line_name": "@shopsea",
+            "line_user_id": "",
             "assigned_agent": "พรรณี",
             "insurance_category": "ธุรกิจ",
             "product_name": "SME",
@@ -783,18 +886,19 @@ def seed_demo_rows(db: sqlite3.Connection) -> None:
         db.execute(
             """
             INSERT INTO policies (
-              public_ref, customer_name, customer_phone, line_name, assigned_agent,
+              public_ref, customer_name, customer_phone, line_name, line_user_id, assigned_agent,
               insurance_category, product_name, policy_number, insurer_name,
               start_date, end_date, premium_amount, sales_status, next_follow_up,
               customer_notes, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 row["public_ref"],
                 row["customer_name"],
                 row["customer_phone"],
                 row["line_name"],
+                row["line_user_id"],
                 row["assigned_agent"],
                 row["insurance_category"],
                 row["product_name"],

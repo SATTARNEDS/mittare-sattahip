@@ -36,11 +36,13 @@
         <a href="index.html">หน้าแรก</a>
         <a href="insurance.html?category=motor">ศูนย์ข้อมูลประกัน</a>
         <a href="customer-status.html">หน้าลูกค้า</a>
-        <a href="#policy-form">เพิ่มกรมธรรม์</a>
-        <a href="#policy-list">รายการติดตาม</a>
-        <a href="#media-manager">คลังรูปเว็บ</a>
-        <a class="button button--small button--dark" href="#agent-tools">สำรองข้อมูล</a>
-        <button class="text-button" id="logout-button" type="button" hidden>ออกจากระบบ</button>
+        <span class="agent-private-nav" id="agent-private-nav" hidden>
+          <a href="#policy-form">เพิ่มกรมธรรม์</a>
+          <a href="#policy-list">รายการติดตาม</a>
+          <a href="#media-manager">คลังรูปเว็บ</a>
+          <a class="button button--small button--dark" href="#agent-tools">สำรองข้อมูล</a>
+          <button class="text-button" id="logout-button" type="button">ออกจากระบบ</button>
+        </span>
       </nav>
     </div>
   </header>
@@ -145,8 +147,20 @@
               <input id="line-name" name="lineName" type="text" placeholder="@line หรือชื่อบัญชี">
             </div>
             <div class="form-row">
+              <label for="line-user-id">LINE User ID สำหรับ Push</label>
+              <input id="line-user-id" name="lineUserId" type="text" placeholder="เช่น Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+              <p class="field-help">ต้องเป็น User ID จาก LINE Messaging API ไม่ใช่ LINE ID หรือ @OA</p>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-row">
               <label for="assigned-agent">ผู้ดูแล</label>
               <input id="assigned-agent" name="assignedAgent" type="text" placeholder="เช่น เทพา / พรรณี">
+            </div>
+            <div class="form-row">
+              <label for="line-push-note">สถานะ LINE Push</label>
+              <input id="line-push-note" type="text" value="บันทึก User ID แล้วจึงส่ง Push รายคนได้" readonly>
             </div>
           </div>
 
@@ -237,7 +251,7 @@
         <aside class="agent-message-panel" aria-labelledby="message-title">
           <p class="eyebrow eyebrow--dark"><span></span> Follow-up Message</p>
           <h2 id="message-title">ข้อความติดตามแบบกดส่งเอง</h2>
-          <p>เลือกกรมธรรม์ในรายการ แล้วระบบจะสร้างข้อความสำหรับคัดลอกหรือเปิด LINE Share โดยไม่ใช้โควตา Push Message</p>
+          <p>เลือกกรมธรรม์ในรายการ แล้วส่งได้ทั้งคัดลอก เปิด LINE พร้อมข้อความ หรือ Push ผ่าน LINE Messaging API ทีละคน</p>
           <div class="form-row">
             <label for="message-tone">รูปแบบข้อความ</label>
             <select id="message-tone">
@@ -251,19 +265,31 @@
           <div class="agent-message-actions">
             <button class="button button--primary" id="copy-message" type="button">คัดลอกข้อความ</button>
             <a class="button button--dark" id="open-line-share" href="#" target="_blank" rel="noopener" aria-disabled="true">เปิด LINE</a>
+            <button class="button button--dark" id="push-line-message" type="button" disabled>ส่ง LINE Push</button>
           </div>
-          <p class="agent-note">LINE Share เป็นการเปิดหน้าส่งข้อความให้คุณกดส่งเอง ไม่ใช่การส่งอัตโนมัติถึงลูกค้าทุกคน</p>
+          <p class="agent-note" id="line-push-feedback" role="status" aria-live="polite">LINE Push ต้องตั้งค่า LINE_CHANNEL_ACCESS_TOKEN และบันทึก LINE User ID ของลูกค้าก่อน</p>
         </aside>
       </div>
     </section>
 
     <section class="agent-media-section section" id="media-manager" aria-labelledby="media-manager-title">
-      <div class="container agent-media__grid">
+      <div class="container">
+        <div class="section-heading agent-heading">
+          <div>
+            <p class="eyebrow eyebrow--dark"><span></span> Product Media</p>
+            <h2 id="media-manager-title">จัดการรูปหน้าเว็บและเอกสารสินค้า</h2>
+          </div>
+          <p>ดูตัวอย่างแบบเดียวกับที่ลูกค้าเห็น แล้วกดแก้ไขเพื่อเปลี่ยนรูปประกอบ เพิ่มรูปเอกสาร หรือเพิ่ม PDF ของแต่ละแผน</p>
+        </div>
+
+        <div class="agent-media-preview" id="product-media-preview" aria-live="polite"></div>
+
+        <div class="agent-media__grid">
         <form class="agent-form" id="product-media-form">
           <div class="calculator-heading">
             <div>
               <span>03</span>
-              <h2 id="media-manager-title">จัดการรูปหน้าเว็บและเอกสารสินค้า</h2>
+              <h2>แก้ไขไฟล์ของแผนที่เลือก</h2>
             </div>
           </div>
 
@@ -300,6 +326,7 @@
           <p>เลือกแผนด้านซ้ายเพื่อดูไฟล์ที่ตั้งไว้ ลบไฟล์ได้ทันทีถ้าไม่ต้องการให้หน้าเว็บใช้ไฟล์นั้นแล้ว</p>
           <div class="agent-media-list" id="product-media-list" aria-live="polite"></div>
         </aside>
+        </div>
       </div>
     </section>
 
