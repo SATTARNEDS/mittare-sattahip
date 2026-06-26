@@ -23,11 +23,15 @@ const productMediaPreview = document.querySelector("#product-media-preview");
 const mediaFeedback = document.querySelector("#media-feedback");
 const pushLineMessageButton = document.querySelector("#push-line-message");
 const linePushFeedback = document.querySelector("#line-push-feedback");
+const lineContactList = document.querySelector("#line-contact-list");
+const refreshLineContactsButton = document.querySelector("#refresh-line-contacts");
 
 let policies = [];
 let selectedPolicyId = "";
 let productMedia = {};
+let lineContacts = [];
 let linePushConfigured = false;
+let lineWebhookConfigured = false;
 
 function setAgentLoading(isLoading, message = "กำลังเตรียมข้อมูลหลังบ้าน") {
   if (!agentLoading) return;
@@ -183,8 +187,9 @@ async function initializeAgentDashboard() {
     setAgentLoading(true, "กำลังตรวจสอบสิทธิ์เข้าใช้งาน");
     const session = await apiFetch("/api/session");
     linePushConfigured = Boolean(session.linePushConfigured);
+    lineWebhookConfigured = Boolean(session.lineWebhookConfigured);
     setAuthenticated(session.authenticated);
-    if (session.authenticated) await Promise.all([refreshPolicies(), refreshProductMedia()]);
+    if (session.authenticated) await Promise.all([refreshPolicies(), refreshProductMedia(), refreshLineContacts()]);
   } catch (error) {
     loginFeedback.textContent = "กรุณารันผ่าน Flask server ด้วยคำสั่ง python app.py";
   } finally {
@@ -223,6 +228,16 @@ async function refreshProductMedia() {
     renderProductMediaList();
   } finally {
     setAgentLoading(false);
+  }
+}
+
+async function refreshLineContacts() {
+  if (!lineContactList) return;
+  try {
+    lineContacts = await apiFetch("/api/line/contacts");
+    renderLineContacts();
+  } catch (error) {
+    lineContactList.innerHTML = `<span>${escapeHtml(error.message)}</span>`;
   }
 }
 
@@ -391,6 +406,25 @@ function renderPolicyProductOptions(selectedValue = "") {
     ...values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
   ].join("");
   productSelect.value = selectedValue || "";
+}
+
+function renderLineContacts() {
+  if (!lineContactList) return;
+  if (!lineContacts.length) {
+    lineContactList.innerHTML = `
+      <span>${lineWebhookConfigured ? "ยังไม่มีลูกค้าทัก LINE OA เข้ามา" : "ยังไม่ได้ตั้งค่า LINE_CHANNEL_SECRET สำหรับ Webhook"}</span>
+    `;
+    return;
+  }
+  lineContactList.innerHTML = lineContacts.map((contact) => `
+    <div class="line-contact-item">
+      <div>
+        <strong>${escapeHtml(contact.latestMessage || contact.latestEventType || "LINE contact")}</strong>
+        <code>${escapeHtml(contact.lineUserId)}</code>
+      </div>
+      <button type="button" data-use-line-user-id="${escapeHtml(contact.lineUserId)}">ใช้กับฟอร์ม</button>
+    </div>
+  `).join("");
 }
 
 function renderCurrentAttachments(policy) {
@@ -706,7 +740,7 @@ loginForm?.addEventListener("submit", async (event) => {
     });
     loginForm.reset();
     setAuthenticated(true);
-    await Promise.all([refreshPolicies(), refreshProductMedia()]);
+    await Promise.all([refreshPolicies(), refreshProductMedia(), refreshLineContacts()]);
   } catch (error) {
     loginFeedback.textContent = error.message;
   }
@@ -717,6 +751,7 @@ logoutButton?.addEventListener("click", async () => {
   policies = [];
   selectedPolicyId = "";
   productMedia = {};
+  lineContacts = [];
   setAuthenticated(false);
 });
 
@@ -767,6 +802,19 @@ productMediaPreview?.addEventListener("click", (event) => {
 });
 
 pushLineMessageButton?.addEventListener("click", pushSelectedLineMessage);
+refreshLineContactsButton?.addEventListener("click", refreshLineContacts);
+lineContactList?.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-use-line-user-id]");
+  if (!button) return;
+  const lineUserIdInput = document.querySelector("#line-user-id");
+  lineUserIdInput.value = button.dataset.useLineUserId;
+  try {
+    await navigator.clipboard.writeText(button.dataset.useLineUserId);
+    linePushFeedback.textContent = "ใส่ LINE User ID ลงฟอร์มและคัดลอกแล้ว";
+  } catch (error) {
+    linePushFeedback.textContent = "ใส่ LINE User ID ลงฟอร์มแล้ว";
+  }
+});
 
 document.querySelector("#copy-message")?.addEventListener("click", async () => {
   if (!generatedMessage.value) return;

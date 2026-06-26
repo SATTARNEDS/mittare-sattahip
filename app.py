@@ -6,6 +6,9 @@ import secrets
 import sqlite3
 import urllib.error
 import urllib.request
+import base64
+import hashlib
+import hmac
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -57,6 +60,7 @@ def create_app() -> Flask:
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
     app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD", "admin123")
     app.config["LINE_CHANNEL_ACCESS_TOKEN"] = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+    app.config["LINE_CHANNEL_SECRET"] = os.environ.get("LINE_CHANNEL_SECRET", "")
 
     INSTANCE_DIR.mkdir(exist_ok=True)
     UPLOAD_DIR.mkdir(exist_ok=True)
@@ -100,6 +104,7 @@ def create_app() -> Flask:
         return jsonify({
             "authenticated": is_authenticated(),
             "linePushConfigured": bool(app.config["LINE_CHANNEL_ACCESS_TOKEN"]),
+            "lineWebhookConfigured": bool(app.config["LINE_CHANNEL_SECRET"]),
         })
 
     @app.post("/api/session")
@@ -237,6 +242,30 @@ def create_app() -> Flask:
             db.execute("DELETE FROM attachments WHERE id = ?", (attachment_id,))
         delete_upload_file(attachment["stored_filename"])
         return jsonify({"ok": True})
+
+    @app.post("/api/line/webhook")
+    def line_webhook():
+        channel_secret = app.config["LINE_CHANNEL_SECRET"]
+        body = request.get_data()
+        signature = request.headers.get("x-line-signature", "")
+        if channel_secret and not verify_line_signature(channel_secret, body, signature):
+            return jsonify({"error": "Invalid LINE signature"}), 400
+
+        payload = request.get_json(silent=True) or {}
+        events = payload.get("events", [])
+        with get_db() as db:
+            for event in events:
+                save_line_webhook_event(db, event)
+        return jsonify({"ok": True})
+
+    @app.get("/api/line/contacts")
+    @require_admin
+    def list_line_contacts():
+        with get_db() as db:
+            rows = db.execute(
+                "SELECT * FROM line_contacts ORDER BY updated_at DESC LIMIT 100"
+            ).fetchall()
+        return jsonify([line_contact_to_dict(row) for row in rows])
 
     @app.post("/api/policies/<int:policy_id>/line-push")
     @require_admin
@@ -522,11 +551,31 @@ def initialize_database() -> None:
               FOREIGN KEY (policy_id) REFERENCES policies(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS line_contacts (
+              line_user_id TEXT PRIMARY KEY,
+              display_name TEXT DEFAULT '',
+              latest_message TEXT DEFAULT '',
+              latest_event_type TEXT DEFAULT '',
+              first_seen_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS line_webhook_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              line_user_id TEXT DEFAULT '',
+              event_type TEXT NOT NULL,
+              message_type TEXT DEFAULT '',
+              message_text TEXT DEFAULT '',
+              raw_event TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_policies_end_date ON policies(end_date);
             CREATE INDEX IF NOT EXISTS idx_policies_phone ON policies(customer_phone);
             CREATE INDEX IF NOT EXISTS idx_attachments_policy ON attachments(policy_id);
             CREATE INDEX IF NOT EXISTS idx_product_media_plan ON product_media(plan_id);
             CREATE INDEX IF NOT EXISTS idx_line_message_logs_policy ON line_message_logs(policy_id);
+            CREATE INDEX IF NOT EXISTS idx_line_webhook_events_user ON line_webhook_events(line_user_id);
             """
         )
         ensure_column(db, "policies", "line_user_id", "TEXT DEFAULT ''")
@@ -904,6 +953,67 @@ def send_line_push_message(token: str, line_user_id: str, message: str) -> dict[
         raise RuntimeError(details or error.reason) from error
     except urllib.error.URLError as error:
         raise RuntimeError(str(error.reason)) from error
+
+
+def verify_line_signature(channel_secret: str, body: bytes, signature: str) -> bool:
+    if not signature:
+        return False
+    digest = hmac.new(channel_secret.encode("utf-8"), body, hashlib.sha256).digest()
+    expected_signature = base64.b64encode(digest).decode("utf-8")
+    return hmac.compare_digest(expected_signature, signature)
+
+
+def save_line_webhook_event(db: sqlite3.Connection, event: dict[str, Any]) -> None:
+    source = event.get("source") or {}
+    message = event.get("message") or {}
+    line_user_id = str(source.get("userId") or "").strip()
+    event_type = str(event.get("type") or "")
+    message_type = str(message.get("type") or "")
+    message_text = str(message.get("text") or "").strip() if message_type == "text" else ""
+    now = utc_now()
+
+    db.execute(
+        """
+        INSERT INTO line_webhook_events (
+          line_user_id, event_type, message_type, message_text, raw_event, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            line_user_id,
+            event_type,
+            message_type,
+            message_text,
+            json.dumps(event, ensure_ascii=False),
+            now,
+        ),
+    )
+    if not line_user_id:
+        return
+    db.execute(
+        """
+        INSERT INTO line_contacts (
+          line_user_id, latest_message, latest_event_type, first_seen_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(line_user_id) DO UPDATE SET
+          latest_message = excluded.latest_message,
+          latest_event_type = excluded.latest_event_type,
+          updated_at = excluded.updated_at
+        """,
+        (line_user_id, message_text, event_type, now, now),
+    )
+
+
+def line_contact_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "lineUserId": row["line_user_id"],
+        "displayName": row["display_name"],
+        "latestMessage": row["latest_message"],
+        "latestEventType": row["latest_event_type"],
+        "firstSeenAt": row["first_seen_at"],
+        "updatedAt": row["updated_at"],
+    }
 
 
 def policy_to_dict(db: sqlite3.Connection, row: sqlite3.Row, include_private: bool) -> dict[str, Any]:

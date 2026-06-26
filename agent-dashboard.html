@@ -251,7 +251,6 @@
             บันทึกข้อมูลกรมธรรม์
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
           </button>
-          <p class="form-note" id="form-feedback" role="status" aria-live="polite">พร้อมบันทึกข้อมูลลง SQLite</p>
         </form>
 
         <aside class="agent-message-panel" aria-labelledby="message-title">
@@ -274,6 +273,15 @@
             <button class="button button--dark" id="push-line-message" type="button" disabled>ส่ง LINE Push</button>
           </div>
           <p class="agent-note" id="line-push-feedback" role="status" aria-live="polite">LINE Push ต้องตั้งค่า LINE_CHANNEL_ACCESS_TOKEN และบันทึก LINE User ID ของลูกค้าก่อน</p>
+          <div class="line-contact-panel">
+            <div class="line-contact-panel__header">
+              <strong>LINE ที่ทักเข้ามาล่าสุด</strong>
+              <button class="text-button" id="refresh-line-contacts" type="button">รีเฟรช</button>
+            </div>
+            <div class="line-contact-list" id="line-contact-list">
+              <span>เมื่อมีลูกค้าทัก LINE OA ระบบจะแสดง User ID ตรงนี้</span>
+            </div>
+          </div>
         </aside>
       </div>
     </section>

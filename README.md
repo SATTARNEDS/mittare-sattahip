@@ -28,6 +28,7 @@ python -m pip install -r requirements.txt
 $env:ADMIN_PASSWORD="เปลี่ยนเป็นรหัสผ่านที่ปลอดภัย"
 $env:SECRET_KEY="เปลี่ยนเป็นค่าสุ่มยาวสำหรับ session"
 $env:LINE_CHANNEL_ACCESS_TOKEN="Channel access token จาก LINE Messaging API ถ้าต้องการใช้ Push"
+$env:LINE_CHANNEL_SECRET="Channel secret จาก Basic settings ถ้าต้องการรับ Webhook"
 python app.py
 ```
 
@@ -75,6 +76,32 @@ $env:LINE_CHANNEL_ACCESS_TOKEN="ใส่ Channel access token"
 
 ถ้ายังไม่มี User ID ให้ใช้ปุ่ม `คัดลอกข้อความ` หรือ `เปิด LINE` เพื่อส่งเองก่อนได้
 
+## ตั้งค่า LINE Webhook เพื่อรับ User ID
+
+ระบบมี endpoint รับ Webhook ที่:
+
+```text
+https://ชื่อโดเมนของคุณ/api/line/webhook
+```
+
+วิธีตั้งค่า:
+
+1. ไปที่ LINE Developers > Messaging API channel
+2. คัดลอก `Channel secret` จากแท็บ Basic settings
+3. ตั้งค่า env:
+
+```powershell
+$env:LINE_CHANNEL_SECRET="ใส่ Channel secret"
+```
+
+4. ในแท็บ Messaging API ใส่ Webhook URL เป็น `/api/line/webhook`
+5. เปิด Use webhook
+6. กด Verify
+7. ให้ลูกค้าทัก LINE OA อย่างน้อย 1 ข้อความ
+8. กลับมาที่หลังบ้าน รายชื่อ LINE ที่ทักเข้ามาจะขึ้นในกล่อง `LINE ที่ทักเข้ามาล่าสุด`
+
+กด `ใช้กับฟอร์ม` เพื่อใส่ `LINE User ID` ลงฟอร์มกรมธรรม์ แล้วบันทึกก่อนทดสอบ Push
+
 ## วิธีทดสอบหน้าลูกค้า
 
 1. เข้า `agent-dashboard.html`
@@ -104,6 +131,7 @@ Build Command: pip install -r requirements.txt
 Start Command: gunicorn app:app
 APP_INSTANCE_DIR: /var/data
 LINE_CHANNEL_ACCESS_TOKEN: ใส่เมื่อพร้อมใช้ LINE Push จริง
+LINE_CHANNEL_SECRET: ใส่เมื่อพร้อมรับ LINE Webhook จริง
 ```
 
 5. ตั้ง `ADMIN_PASSWORD` เป็นรหัสผ่านหลังบ้าน และให้ Render สร้าง `SECRET_KEY`
