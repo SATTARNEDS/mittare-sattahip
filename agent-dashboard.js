@@ -25,6 +25,10 @@ const pushLineMessageButton = document.querySelector("#push-line-message");
 const linePushFeedback = document.querySelector("#line-push-feedback");
 const lineContactList = document.querySelector("#line-contact-list");
 const refreshLineContactsButton = document.querySelector("#refresh-line-contacts");
+const adminLineSettingsForm = document.querySelector("#admin-line-settings-form");
+const adminLineUserIdInput = document.querySelector("#admin-line-user-id");
+const adminLineFeedback = document.querySelector("#admin-line-feedback");
+const sendAdminAlertButton = document.querySelector("#send-admin-alert");
 
 let policies = [];
 let selectedPolicyId = "";
@@ -32,7 +36,7 @@ let productMedia = {};
 let lineContacts = [];
 let linePushConfigured = false;
 let lineWebhookConfigured = false;
-const lineTestUserId = "Ud9cbb7b4b3f915283bedfdd7623593fe";
+let adminLineUserId = "";
 
 function setAgentLoading(isLoading, message = "กำลังเตรียมข้อมูลหลังบ้าน") {
   if (!agentLoading) return;
@@ -190,7 +194,7 @@ async function initializeAgentDashboard() {
     linePushConfigured = Boolean(session.linePushConfigured);
     lineWebhookConfigured = Boolean(session.lineWebhookConfigured);
     setAuthenticated(session.authenticated);
-    if (session.authenticated) await Promise.all([refreshPolicies(), refreshProductMedia(), refreshLineContacts()]);
+    if (session.authenticated) await Promise.all([refreshSettings(), refreshPolicies(), refreshProductMedia(), refreshLineContacts()]);
   } catch (error) {
     loginFeedback.textContent = "กรุณารันผ่าน Flask server ด้วยคำสั่ง python app.py";
   } finally {
@@ -208,6 +212,27 @@ function setAuthenticated(isAuthenticated) {
   } else {
     document.body.classList.add("agent-authenticated");
   }
+}
+
+function renderAdminLineState() {
+  const isReady = Boolean(linePushConfigured && adminLineUserId);
+  if (sendAdminAlertButton) sendAdminAlertButton.disabled = !isReady;
+  if (getSelectedPolicy()) renderMessage();
+  if (!adminLineFeedback) return;
+  if (!linePushConfigured) {
+    adminLineFeedback.textContent = "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์";
+  } else if (!adminLineUserId) {
+    adminLineFeedback.textContent = "กรุณาบันทึก LINE User ID ผู้ดูแลก่อนส่งแจ้งเตือน";
+  } else {
+    adminLineFeedback.textContent = "พร้อมส่งแจ้งเตือนผ่าน LINE ให้ผู้ดูแล";
+  }
+}
+
+async function refreshSettings() {
+  const settings = await apiFetch("/api/settings");
+  adminLineUserId = settings.adminLineUserId || "";
+  if (adminLineUserIdInput) adminLineUserIdInput.value = adminLineUserId;
+  renderAdminLineState();
 }
 
 async function refreshPolicies() {
@@ -349,7 +374,7 @@ function renderPolicyTable() {
           <strong>${escapeHtml(policy.insuranceCategory)}</strong>
           <span>${escapeHtml(policy.productName || "ไม่ระบุแผน")}</span>
           <small>${escapeHtml(policy.policyNumber || "ยังไม่มีเลขกรมธรรม์")} · ${attachmentCount} ไฟล์</small>
-          <small>${policy.lineUserId ? "พร้อมส่ง LINE Push" : "ยังไม่มี LINE User ID"}</small>
+          <small>${escapeHtml(policy.assignedAgent || "ยังไม่ระบุผู้ดูแล")}</small>
         </td>
         <td>
           <strong class="${urgencyClass}">${formatDate(policy.endDate)}</strong>
@@ -366,7 +391,7 @@ function renderPolicyTable() {
         <td>
           <div class="agent-table-actions">
             <button type="button" data-action="select" data-id="${policy.id}">ข้อความ</button>
-            <button type="button" data-action="line" data-id="${policy.id}">ส่ง LINE</button>
+            <button type="button" data-action="line" data-id="${policy.id}">แจ้งผู้ดูแล</button>
             <button type="button" data-action="edit" data-id="${policy.id}">แก้ไข</button>
             <button type="button" data-action="delete" data-id="${policy.id}">ลบ</button>
           </div>
@@ -413,7 +438,7 @@ function renderLineContacts() {
   if (!lineContactList) return;
   if (!lineContacts.length) {
     lineContactList.innerHTML = `
-      <span>${lineWebhookConfigured ? "ยังไม่มีลูกค้าทัก LINE OA เข้ามา" : "ยังไม่ได้ตั้งค่า LINE_CHANNEL_SECRET สำหรับ Webhook"}</span>
+      <span>${lineWebhookConfigured ? "ยังไม่มี LINE User ID ที่ทัก OA เข้ามา" : "ยังไม่ได้ตั้งค่า LINE_CHANNEL_SECRET สำหรับ Webhook"}</span>
     `;
     return;
   }
@@ -423,7 +448,7 @@ function renderLineContacts() {
         <strong>${escapeHtml(contact.latestMessage || contact.latestEventType || "LINE contact")}</strong>
         <code>${escapeHtml(contact.lineUserId)}</code>
       </div>
-      <button type="button" data-use-line-user-id="${escapeHtml(contact.lineUserId)}">ใช้กับฟอร์ม</button>
+      <button type="button" data-use-line-user-id="${escapeHtml(contact.lineUserId)}">ใช้เป็นผู้ดูแล</button>
     </div>
   `).join("");
 }
@@ -543,7 +568,7 @@ function editPolicy(policyId) {
   document.querySelector("#customer-name").value = policy.customerName || "";
   document.querySelector("#customer-phone").value = policy.customerPhone || "";
   document.querySelector("#line-name").value = policy.lineName || "";
-  document.querySelector("#line-user-id").value = policy.lineUserId || "";
+  document.querySelector("#line-user-id").value = "";
   document.querySelector("#assigned-agent").value = policy.assignedAgent || "";
   document.querySelector("#insurance-category").value = policy.insuranceCategory || "รถยนต์";
   renderPolicyProductOptions(policy.productName || "");
@@ -594,21 +619,21 @@ function renderMessage() {
   const dueLabel = getDueLabel(policy.endDate);
   const agentName = policy.assignedAgent || "ทีม Mittare Sattahip";
   const messages = {
-    renewal: `สวัสดีครับ/ค่ะ คุณ${policy.customerName}\n\nกรมธรรม์${policy.insuranceCategory}${policy.productName ? ` (${policy.productName})` : ""} ของท่านจะครบกำหนดวันที่ ${formatDate(policy.endDate)} (${dueLabel})\n\n${agentName} ขอช่วยตรวจสอบแผนต่ออายุและเปรียบเทียบความคุ้มครองให้ครับ/ค่ะ\n\nเลขอ้างอิงสำหรับเช็กสถานะ: ${policy.publicRef}`,
-    document: `สวัสดีครับ/ค่ะ คุณ${policy.customerName}\n\nเพื่อดำเนินงาน${policy.insuranceCategory}${policy.productName ? ` (${policy.productName})` : ""} ต่อ รบกวนส่งเอกสาร/รูปภาพเพิ่มเติมตามที่สะดวกครับ/ค่ะ\n\nเลขอ้างอิง: ${policy.publicRef}\nข้อมูลกรมธรรม์เดิม: ${policy.policyNumber || "ยังไม่ระบุ"}\nหมายเหตุ: ${policy.customerNotes || "ทีมงานจะแจ้งรายการเอกสารที่ต้องใช้เพิ่มเติม"}`,
-    payment: `สวัสดีครับ/ค่ะ คุณ${policy.customerName}\n\nขอแจ้งนัดชำระเบี้ยสำหรับ${policy.insuranceCategory}${policy.productName ? ` (${policy.productName})` : ""}\nเลขอ้างอิง: ${policy.publicRef}\nเบี้ยโดยประมาณ/ตามที่บันทึกไว้: ${formatCurrency(policy.premiumAmount)}\nวันหมดอายุกรมธรรม์: ${formatDate(policy.endDate)}\n\nหากชำระแล้วสามารถส่งหลักฐานกลับมาให้ทีมตรวจสอบได้ครับ/ค่ะ`,
-    claim: `สวัสดีครับ/ค่ะ คุณ${policy.customerName}\n\n${agentName} ขออนุญาตติดตามงานเคลม/การดูแลหลังเกิดเหตุของ${policy.insuranceCategory}${policy.productName ? ` (${policy.productName})` : ""}\nเลขอ้างอิง: ${policy.publicRef}\n\nหากมีเอกสารเพิ่มเติม รูปภาพ หรือข้อสงสัยเกี่ยวกับขั้นตอนถัดไป ส่งกลับมาในแชทนี้ได้เลยครับ/ค่ะ`
+    renewal: `แจ้งเตือนผู้ดูแล\n\nลูกค้า: ${policy.customerName}\nโทร: ${policy.customerPhone || "-"}\nกรมธรรม์: ${policy.policyNumber || policy.publicRef}\nประเภท: ${policy.insuranceCategory}${policy.productName ? ` (${policy.productName})` : ""}\nครบกำหนด: ${formatDate(policy.endDate)} (${dueLabel})\nผู้ดูแล: ${agentName}\n\nงานที่แนะนำ: ตรวจแผนต่ออายุและเปรียบเทียบความคุ้มครองให้ลูกค้า`,
+    document: `แจ้งเตือนผู้ดูแล\n\nลูกค้า: ${policy.customerName}\nโทร: ${policy.customerPhone || "-"}\nกรมธรรม์: ${policy.policyNumber || policy.publicRef}\nประเภท: ${policy.insuranceCategory}${policy.productName ? ` (${policy.productName})` : ""}\nสถานะ: ขอเอกสารเพิ่มเติม\nผู้ดูแล: ${agentName}\n\nหมายเหตุ: ${policy.customerNotes || "ยังไม่มีรายละเอียดเอกสารที่ต้องขอ"}`,
+    payment: `แจ้งเตือนผู้ดูแล\n\nลูกค้า: ${policy.customerName}\nโทร: ${policy.customerPhone || "-"}\nกรมธรรม์: ${policy.policyNumber || policy.publicRef}\nเบี้ยที่บันทึกไว้: ${formatCurrency(policy.premiumAmount)}\nครบกำหนด: ${formatDate(policy.endDate)}\nผู้ดูแล: ${agentName}\n\nงานที่แนะนำ: ติดตามนัดชำระเบี้ยและหลักฐานการชำระ`,
+    claim: `แจ้งเตือนผู้ดูแล\n\nลูกค้า: ${policy.customerName}\nโทร: ${policy.customerPhone || "-"}\nกรมธรรม์: ${policy.policyNumber || policy.publicRef}\nประเภท: ${policy.insuranceCategory}${policy.productName ? ` (${policy.productName})` : ""}\nผู้ดูแล: ${agentName}\n\nงานที่แนะนำ: ติดตามสถานะเคลม เอกสารเพิ่มเติม และขั้นตอนถัดไป`
   };
 
   generatedMessage.value = messages[tone];
   openLineShare.href = `https://line.me/R/msg/text/?${encodeURIComponent(generatedMessage.value)}`;
   openLineShare.removeAttribute("aria-disabled");
-  pushLineMessageButton.disabled = !linePushConfigured || !policy.lineUserId;
+  pushLineMessageButton.disabled = !linePushConfigured || !adminLineUserId;
   linePushFeedback.textContent = !linePushConfigured
     ? "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์"
-    : policy.lineUserId
-      ? "พร้อมส่ง LINE Push ให้ลูกค้ารายนี้"
-      : "ลูกค้ารายนี้ยังไม่มี LINE User ID สำหรับ Push";
+    : adminLineUserId
+      ? "พร้อมส่ง LINE Push ให้ผู้ดูแล"
+      : "กรุณาบันทึก LINE User ID ผู้ดูแลก่อน";
 }
 
 function renderAll() {
@@ -646,11 +671,11 @@ async function removeAttachment(attachmentId) {
 async function addSampleData() {
   await apiFetch("/api/demo/seed", {
     method: "POST",
-    body: JSON.stringify({ lineUserId: lineTestUserId })
+    body: JSON.stringify({})
   });
   await refreshPolicies();
   await refreshLineContacts();
-  formFeedback.textContent = "เพิ่มข้อมูลทดสอบ LINE ลง SQLite แล้ว ค้นหา MT4-LINE-TEST หรือ bom05183 เพื่อทดลองส่ง Push";
+  formFeedback.textContent = "เพิ่มข้อมูลตัวอย่างลง SQLite แล้ว ใช้ทดสอบแจ้งเตือนผู้ดูแลได้";
 }
 
 async function exportData() {
@@ -721,17 +746,49 @@ async function pushSelectedLineMessage() {
   const policy = getSelectedPolicy();
   if (!policy || !generatedMessage.value) return;
   pushLineMessageButton.disabled = true;
-  linePushFeedback.textContent = "กำลังส่ง LINE Push...";
+  linePushFeedback.textContent = "กำลังส่ง LINE Push ให้ผู้ดูแล...";
   try {
     await apiFetch(`/api/policies/${policy.id}/line-push`, {
       method: "POST",
       body: JSON.stringify({ message: generatedMessage.value })
     });
-    linePushFeedback.textContent = `ส่ง LINE Push ถึงคุณ${policy.customerName} แล้ว`;
+    linePushFeedback.textContent = `ส่งแจ้งเตือนเรื่อง ${policy.customerName} ให้ผู้ดูแลแล้ว`;
   } catch (error) {
     linePushFeedback.textContent = error.message;
   } finally {
     renderMessage();
+  }
+}
+
+async function saveAdminLineSettings(event) {
+  event.preventDefault();
+  const adminLineUserIdValue = new FormData(adminLineSettingsForm).get("adminLineUserId");
+  adminLineFeedback.textContent = "กำลังบันทึก LINE User ID ผู้ดูแล...";
+  try {
+    const settings = await apiFetch("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify({ adminLineUserId: adminLineUserIdValue })
+    });
+    adminLineUserId = settings.adminLineUserId || "";
+    renderAdminLineState();
+  } catch (error) {
+    adminLineFeedback.textContent = error.message;
+  }
+}
+
+async function sendAdminAlertSummary() {
+  sendAdminAlertButton.disabled = true;
+  adminLineFeedback.textContent = "กำลังส่งสรุปแจ้งเตือนให้ผู้ดูแล...";
+  try {
+    await apiFetch("/api/admin/line-alerts", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    adminLineFeedback.textContent = "ส่งสรุปแจ้งเตือนให้ผู้ดูแลแล้ว";
+  } catch (error) {
+    adminLineFeedback.textContent = error.message;
+  } finally {
+    renderAdminLineState();
   }
 }
 
@@ -745,7 +802,7 @@ loginForm?.addEventListener("submit", async (event) => {
     });
     loginForm.reset();
     setAuthenticated(true);
-    await Promise.all([refreshPolicies(), refreshProductMedia(), refreshLineContacts()]);
+    await Promise.all([refreshSettings(), refreshPolicies(), refreshProductMedia(), refreshLineContacts()]);
   } catch (error) {
     loginFeedback.textContent = error.message;
   }
@@ -757,6 +814,7 @@ logoutButton?.addEventListener("click", async () => {
   selectedPolicyId = "";
   productMedia = {};
   lineContacts = [];
+  adminLineUserId = "";
   setAuthenticated(false);
 });
 
@@ -806,18 +864,19 @@ productMediaPreview?.addEventListener("click", (event) => {
   editProductMedia(button.dataset.editMediaPlan, button.dataset.mediaType);
 });
 
+adminLineSettingsForm?.addEventListener("submit", saveAdminLineSettings);
+sendAdminAlertButton?.addEventListener("click", sendAdminAlertSummary);
 pushLineMessageButton?.addEventListener("click", pushSelectedLineMessage);
 refreshLineContactsButton?.addEventListener("click", refreshLineContacts);
 lineContactList?.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-use-line-user-id]");
   if (!button) return;
-  const lineUserIdInput = document.querySelector("#line-user-id");
-  lineUserIdInput.value = button.dataset.useLineUserId;
+  adminLineUserIdInput.value = button.dataset.useLineUserId;
   try {
     await navigator.clipboard.writeText(button.dataset.useLineUserId);
-    linePushFeedback.textContent = "ใส่ LINE User ID ลงฟอร์มและคัดลอกแล้ว";
+    adminLineFeedback.textContent = "ใส่ LINE User ID ผู้ดูแลและคัดลอกแล้ว กดบันทึกผู้ดูแลเพื่อใช้งาน";
   } catch (error) {
-    linePushFeedback.textContent = "ใส่ LINE User ID ลงฟอร์มแล้ว";
+    adminLineFeedback.textContent = "ใส่ LINE User ID ผู้ดูแลแล้ว กดบันทึกผู้ดูแลเพื่อใช้งาน";
   }
 });
 

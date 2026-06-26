@@ -5,7 +5,6 @@ import os
 import secrets
 import sqlite3
 import urllib.error
-import urllib.parse
 import urllib.request
 import base64
 import hashlib
@@ -18,7 +17,6 @@ from flask import (
     Flask,
     abort,
     jsonify,
-    redirect,
     request,
     send_from_directory,
     session,
@@ -55,6 +53,17 @@ DEFAULT_PRODUCT_MEDIA = {
     "fuel-station": {"folder": "ประกันภัยสถานีบริการเชื้อเพลิง", "images": 3, "cover": "assets/insurance-specialty.png"},
 }
 
+SALES_STATUS_LABELS = {
+    "new": "ลูกค้าใหม่",
+    "quoted": "ส่งใบเสนอราคาแล้ว",
+    "waiting": "รอตัดสินใจ",
+    "documents": "รอเอกสาร",
+    "payment": "นัดชำระ",
+    "renewed": "ต่ออายุแล้ว",
+    "claim-followup": "ติดตามหลังเคลม",
+    "lost": "ปิดงานไม่สำเร็จ",
+}
+
 
 def create_app() -> Flask:
     app = Flask(__name__, static_folder=None)
@@ -63,9 +72,6 @@ def create_app() -> Flask:
     app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD", "admin123")
     app.config["LINE_CHANNEL_ACCESS_TOKEN"] = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
     app.config["LINE_CHANNEL_SECRET"] = os.environ.get("LINE_CHANNEL_SECRET", "")
-    app.config["LINE_LOGIN_CHANNEL_ID"] = os.environ.get("LINE_LOGIN_CHANNEL_ID", "")
-    app.config["LINE_LOGIN_CHANNEL_SECRET"] = os.environ.get("LINE_LOGIN_CHANNEL_SECRET", "")
-    app.config["LINE_LOGIN_CALLBACK_URL"] = os.environ.get("LINE_LOGIN_CALLBACK_URL", "")
 
     INSTANCE_DIR.mkdir(exist_ok=True)
     UPLOAD_DIR.mkdir(exist_ok=True)
@@ -88,12 +94,10 @@ def create_app() -> Flask:
             "insurance.html",
             "agent-dashboard.html",
             "customer-status.html",
-            "line-login.html",
             "styles.css",
             "script.js",
             "agent-dashboard.js",
             "customer-status.js",
-            "line-login.js",
         }
         if filename in allowed_files or filename.startswith(allowed_roots):
             return send_from_directory(BASE_DIR, filename)
@@ -128,80 +132,22 @@ def create_app() -> Flask:
         session.clear()
         return jsonify({"authenticated": False})
 
-    @app.get("/auth/line/start")
-    def start_line_login():
-        channel_id = app.config["LINE_LOGIN_CHANNEL_ID"]
-        if not channel_id:
-            return redirect("/line-login.html?error=line_login_not_configured")
-        state = secrets.token_urlsafe(24)
-        nonce = secrets.token_urlsafe(24)
-        session["line_login_state"] = state
-        session["line_login_nonce"] = nonce
-        callback_url = get_line_login_callback_url()
-        query = urllib.parse.urlencode({
-            "response_type": "code",
-            "client_id": channel_id,
-            "redirect_uri": callback_url,
-            "state": state,
-            "scope": "profile openid",
-            "nonce": nonce,
-            "bot_prompt": "normal",
-        })
-        return redirect(f"https://access.line.me/oauth2/v2.1/authorize?{query}")
-
-    @app.get("/auth/line/callback")
-    def line_login_callback():
-        error = request.args.get("error")
-        if error:
-            return redirect(f"/line-login.html?error={urllib.parse.quote(error)}")
-        state = request.args.get("state", "")
-        if not state or not secrets.compare_digest(state, session.get("line_login_state", "")):
-            return redirect("/line-login.html?error=invalid_state")
-        code = request.args.get("code", "")
-        if not code:
-            return redirect("/line-login.html?error=missing_code")
-        try:
-            token_payload = exchange_line_login_code(code, get_line_login_callback_url())
-            profile = fetch_line_login_profile(token_payload["access_token"])
-            save_line_login_profile(profile)
-            session["customer_line_user_id"] = profile["userId"]
-            session["customer_line_profile"] = profile
-            session.pop("line_login_state", None)
-            session.pop("line_login_nonce", None)
-            return redirect("/line-login.html?login=success")
-        except RuntimeError as error:
-            return redirect(f"/line-login.html?error={urllib.parse.quote(str(error))}")
-
-    @app.get("/api/customer/line-session")
-    def customer_line_session():
-        profile = session.get("customer_line_profile")
-        return jsonify({
-            "authenticated": bool(session.get("customer_line_user_id")),
-            "profile": profile if profile else None,
-            "configured": bool(app.config["LINE_LOGIN_CHANNEL_ID"] and app.config["LINE_LOGIN_CHANNEL_SECRET"]),
-        })
-
-    @app.delete("/api/customer/line-session")
-    def customer_line_logout():
-        session.pop("customer_line_user_id", None)
-        session.pop("customer_line_profile", None)
-        return jsonify({"authenticated": False})
-
-    @app.get("/api/customer/line-policies")
-    def customer_line_policies():
-        line_user_id = session.get("customer_line_user_id")
-        if not line_user_id:
-            return jsonify({"error": "กรุณาเข้าสู่ระบบด้วย LINE ก่อน"}), 401
+    @app.get("/api/settings")
+    @require_admin
+    def get_settings():
         with get_db() as db:
-            rows = db.execute(
-                """
-                SELECT * FROM policies
-                WHERE line_user_id = ?
-                ORDER BY end_date ASC, updated_at DESC
-                """,
-                (line_user_id,),
-            ).fetchall()
-            return jsonify([policy_to_dict(db, row, include_private=False) for row in rows])
+            return jsonify({
+                "adminLineUserId": get_setting(db, "admin_line_user_id"),
+            })
+
+    @app.put("/api/settings")
+    @require_admin
+    def update_settings():
+        data = request.get_json(silent=True) or {}
+        admin_line_user_id = str(data.get("adminLineUserId", "")).strip()
+        with get_db() as db:
+            set_setting(db, "admin_line_user_id", admin_line_user_id)
+        return jsonify({"adminLineUserId": admin_line_user_id})
 
     @app.get("/api/policies")
     @require_admin
@@ -349,6 +295,42 @@ def create_app() -> Flask:
             ).fetchall()
         return jsonify([line_contact_to_dict(row) for row in rows])
 
+    @app.post("/api/admin/line-alerts")
+    @require_admin
+    def push_admin_line_alert():
+        token = app.config["LINE_CHANNEL_ACCESS_TOKEN"]
+        if not token:
+            return jsonify({"error": "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์"}), 400
+
+        data = request.get_json(silent=True) or {}
+        custom_message = str(data.get("message", "")).strip()
+        with get_db() as db:
+            admin_line_user_id = get_setting(db, "admin_line_user_id")
+            if not admin_line_user_id:
+                return jsonify({"error": "กรุณาบันทึก LINE User ID ผู้ดูแลก่อน"}), 400
+            message = custom_message or build_admin_alert_message(db)
+            try:
+                response_payload = send_line_push_message(token, admin_line_user_id, message)
+                status = "sent"
+                error_message = ""
+            except Exception as error:
+                response_payload = {}
+                status = "failed"
+                error_message = str(error)
+            db.execute(
+                """
+                INSERT INTO line_admin_message_logs (
+                  recipient_line_user_id, message, status, error_message, created_at
+                )
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (admin_line_user_id, message, status, error_message, utc_now()),
+            )
+
+        if status == "failed":
+            return jsonify({"error": f"ส่งแจ้งเตือนผู้ดูแลไม่สำเร็จ: {error_message}"}), 502
+        return jsonify({"ok": True, "lineResponse": response_payload})
+
     @app.post("/api/policies/<int:policy_id>/line-push")
     @require_admin
     def push_line_policy_message(policy_id: int):
@@ -365,9 +347,9 @@ def create_app() -> Flask:
             policy = db.execute("SELECT * FROM policies WHERE id = ?", (policy_id,)).fetchone()
             if not policy:
                 return jsonify({"error": "ไม่พบกรมธรรม์"}), 404
-            line_user_id = str(policy["line_user_id"] or "").strip()
+            line_user_id = get_setting(db, "admin_line_user_id")
             if not line_user_id:
-                return jsonify({"error": "ยังไม่มี LINE User ID ของลูกค้ารายนี้"}), 400
+                return jsonify({"error": "กรุณาบันทึก LINE User ID ผู้ดูแลก่อน"}), 400
 
             try:
                 response_payload = send_line_push_message(token, line_user_id, message)
@@ -523,12 +505,9 @@ def create_app() -> Flask:
     @app.post("/api/demo/seed")
     @require_admin
     def seed_demo_data():
-        data = request.get_json(silent=True) or {}
-        line_user_id = str(data.get("lineUserId", "")).strip()
         with get_db() as db:
             seed_demo_rows(db)
-            if line_user_id:
-                seed_line_test_rows(db, line_user_id)
+            seed_line_test_rows(db, "")
             rows = db.execute("SELECT * FROM policies ORDER BY end_date ASC").fetchall()
             return jsonify([policy_to_dict(db, row, include_private=True) for row in rows])
 
@@ -656,14 +635,19 @@ def initialize_database() -> None:
               created_at TEXT NOT NULL
             );
 
-            CREATE TABLE IF NOT EXISTS line_login_profiles (
-              line_user_id TEXT PRIMARY KEY,
-              display_name TEXT NOT NULL,
-              picture_url TEXT DEFAULT '',
-              status_message TEXT DEFAULT '',
-              raw_profile TEXT NOT NULL,
-              first_login_at TEXT NOT NULL,
-              last_login_at TEXT NOT NULL
+            CREATE TABLE IF NOT EXISTS app_settings (
+              key TEXT PRIMARY KEY,
+              value TEXT NOT NULL DEFAULT '',
+              updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS line_admin_message_logs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              recipient_line_user_id TEXT NOT NULL,
+              message TEXT NOT NULL,
+              status TEXT NOT NULL,
+              error_message TEXT DEFAULT '',
+              created_at TEXT NOT NULL
             );
 
             CREATE INDEX IF NOT EXISTS idx_policies_end_date ON policies(end_date);
@@ -672,7 +656,7 @@ def initialize_database() -> None:
             CREATE INDEX IF NOT EXISTS idx_product_media_plan ON product_media(plan_id);
             CREATE INDEX IF NOT EXISTS idx_line_message_logs_policy ON line_message_logs(policy_id);
             CREATE INDEX IF NOT EXISTS idx_line_webhook_events_user ON line_webhook_events(line_user_id);
-            CREATE INDEX IF NOT EXISTS idx_line_login_profiles_last_login ON line_login_profiles(last_login_at);
+            CREATE INDEX IF NOT EXISTS idx_line_admin_message_logs_created ON line_admin_message_logs(created_at);
             """
         )
         ensure_column(db, "policies", "line_user_id", "TEXT DEFAULT ''")
@@ -687,6 +671,82 @@ def ensure_column(db: sqlite3.Connection, table_name: str, column_name: str, col
     if any(column["name"] == column_name for column in columns):
         return
     db.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
+
+
+def get_setting(db: sqlite3.Connection, key: str) -> str:
+    row = db.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+    return str(row["value"]) if row else ""
+
+
+def set_setting(db: sqlite3.Connection, key: str, value: str) -> None:
+    db.execute(
+        """
+        INSERT INTO app_settings (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET
+          value = excluded.value,
+          updated_at = excluded.updated_at
+        """,
+        (key, value, utc_now()),
+    )
+
+
+def build_admin_alert_message(db: sqlite3.Connection) -> str:
+    rows = db.execute(
+        """
+        SELECT * FROM policies
+        WHERE sales_status NOT IN ('renewed', 'lost')
+        ORDER BY end_date ASC, next_follow_up ASC
+        """
+    ).fetchall()
+    today = datetime.now(timezone.utc).date()
+    alert_rows = []
+    for row in rows:
+        end_date = parse_iso_date(row["end_date"])
+        next_follow_up = parse_iso_date(row["next_follow_up"])
+        is_overdue = bool(end_date and end_date < today)
+        is_due_30 = bool(end_date and 0 <= (end_date - today).days <= 30)
+        is_followup_due = bool(next_follow_up and next_follow_up <= today)
+        if is_overdue or is_due_30 or is_followup_due:
+            alert_rows.append((row, end_date, next_follow_up, is_overdue, is_due_30, is_followup_due))
+
+    if not alert_rows:
+        return "แจ้งเตือนผู้ดูแล Mittare Sattahip\n\nวันนี้ยังไม่มีกรมธรรม์ที่หมดอายุ ใกล้หมดอายุใน 30 วัน หรือนัดติดตามที่เลยกำหนด"
+
+    lines = [
+        "แจ้งเตือนผู้ดูแล Mittare Sattahip",
+        f"รายการที่ควรติดตาม: {len(alert_rows)} รายการ",
+        "",
+    ]
+    for row, end_date, next_follow_up, is_overdue, is_due_30, is_followup_due in alert_rows[:12]:
+        reasons = []
+        if is_overdue and end_date:
+            reasons.append(f"หมดอายุแล้ว {abs((end_date - today).days)} วัน")
+        elif is_due_30 and end_date:
+            reasons.append(f"หมดอายุใน {(end_date - today).days} วัน")
+        if is_followup_due:
+            reasons.append("ถึงนัดติดตาม")
+        lines.extend([
+            f"- {row['customer_name']} | {row['policy_number'] or row['public_ref']}",
+            f"  {row['insurance_category']} {row['product_name'] or ''}".strip(),
+            f"  สถานะ: {SALES_STATUS_LABELS.get(row['sales_status'], row['sales_status'])} | {', '.join(reasons)}",
+        ])
+        if row["assigned_agent"]:
+            lines.append(f"  ผู้ดูแล: {row['assigned_agent']}")
+        if row["customer_phone"]:
+            lines.append(f"  โทร: {row['customer_phone']}")
+    if len(alert_rows) > 12:
+        lines.append(f"\nและอีก {len(alert_rows) - 12} รายการ กรุณาเปิดหลังบ้านเพื่อตรวจสอบทั้งหมด")
+    return "\n".join(lines)
+
+
+def parse_iso_date(value: str | None):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
 
 def policy_payload_from_request() -> dict[str, Any]:
@@ -1052,113 +1112,6 @@ def send_line_push_message(token: str, line_user_id: str, message: str) -> dict[
         raise RuntimeError(str(error.reason)) from error
 
 
-def get_line_login_callback_url() -> str:
-    configured_url = current_app_config("LINE_LOGIN_CALLBACK_URL")
-    if configured_url:
-        return configured_url
-    return urllib.parse.urljoin(request.host_url, "auth/line/callback")
-
-
-def current_app_config(key: str) -> str:
-    from flask import current_app
-
-    return str(current_app.config.get(key, "")).strip()
-
-
-def exchange_line_login_code(code: str, redirect_uri: str) -> dict[str, Any]:
-    channel_id = current_app_config("LINE_LOGIN_CHANNEL_ID")
-    channel_secret = current_app_config("LINE_LOGIN_CHANNEL_SECRET")
-    if not channel_id or not channel_secret:
-        raise RuntimeError("LINE Login ยังไม่ได้ตั้งค่า Channel ID/Secret")
-    form_data = urllib.parse.urlencode({
-        "grant_type": "authorization_code",
-        "code": code,
-        "redirect_uri": redirect_uri,
-        "client_id": channel_id,
-        "client_secret": channel_secret,
-    }).encode("utf-8")
-    line_request = urllib.request.Request(
-        "https://api.line.me/oauth2/v2.1/token",
-        data=form_data,
-        method="POST",
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-    )
-    try:
-        with urllib.request.urlopen(line_request, timeout=12) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        details = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(details or error.reason) from error
-    except urllib.error.URLError as error:
-        raise RuntimeError(str(error.reason)) from error
-
-
-def fetch_line_login_profile(access_token: str) -> dict[str, str]:
-    line_request = urllib.request.Request(
-        "https://api.line.me/v2/profile",
-        method="GET",
-        headers={"Authorization": f"Bearer {access_token}"},
-    )
-    try:
-        with urllib.request.urlopen(line_request, timeout=12) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        details = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(details or error.reason) from error
-    except urllib.error.URLError as error:
-        raise RuntimeError(str(error.reason)) from error
-    user_id = str(payload.get("userId", "")).strip()
-    display_name = str(payload.get("displayName", "")).strip()
-    if not user_id or not display_name:
-        raise RuntimeError("LINE ไม่ส่ง profile ที่จำเป็นกลับมา")
-    return {
-        "userId": user_id,
-        "displayName": display_name,
-        "pictureUrl": str(payload.get("pictureUrl", "")).strip(),
-        "statusMessage": str(payload.get("statusMessage", "")).strip(),
-    }
-
-
-def save_line_login_profile(profile: dict[str, str]) -> None:
-    now = utc_now()
-    with get_db() as db:
-        db.execute(
-            """
-            INSERT INTO line_login_profiles (
-              line_user_id, display_name, picture_url, status_message,
-              raw_profile, first_login_at, last_login_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(line_user_id) DO UPDATE SET
-              display_name = excluded.display_name,
-              picture_url = excluded.picture_url,
-              status_message = excluded.status_message,
-              raw_profile = excluded.raw_profile,
-              last_login_at = excluded.last_login_at
-            """,
-            (
-                profile["userId"],
-                profile["displayName"],
-                profile.get("pictureUrl", ""),
-                profile.get("statusMessage", ""),
-                json.dumps(profile, ensure_ascii=False),
-                now,
-                now,
-            ),
-        )
-        db.execute(
-            """
-            INSERT INTO line_contacts (line_user_id, display_name, latest_message, latest_event_type, first_seen_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(line_user_id) DO UPDATE SET
-              display_name = excluded.display_name,
-              latest_event_type = excluded.latest_event_type,
-              updated_at = excluded.updated_at
-            """,
-            (profile["userId"], profile["displayName"], "เข้าสู่ระบบด้วย LINE", "line-login", now, now),
-        )
-
-
 def verify_line_signature(channel_secret: str, body: bytes, signature: str) -> bool:
     if not signature:
         return False
@@ -1505,18 +1458,19 @@ def seed_line_test_rows(db: sqlite3.Connection, line_user_id: str) -> None:
                 row["customer_notes"], now, now,
             ),
         )
-    db.execute(
-        """
-        INSERT INTO line_contacts (line_user_id, display_name, latest_message, latest_event_type, first_seen_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(line_user_id) DO UPDATE SET
-          display_name = excluded.display_name,
-          latest_message = excluded.latest_message,
-          latest_event_type = excluded.latest_event_type,
-          updated_at = excluded.updated_at
-        """,
-        (line_user_id, "bom05183", "เพิ่มข้อมูลทดสอบสำหรับ LINE Push แล้ว", "manual-test", now, now),
-    )
+    if line_user_id:
+        db.execute(
+            """
+            INSERT INTO line_contacts (line_user_id, display_name, latest_message, latest_event_type, first_seen_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(line_user_id) DO UPDATE SET
+              display_name = excluded.display_name,
+              latest_message = excluded.latest_message,
+              latest_event_type = excluded.latest_event_type,
+              updated_at = excluded.updated_at
+            """,
+            (line_user_id, "bom05183", "เพิ่มข้อมูลตัวอย่างสำหรับแจ้งเตือนผู้ดูแลแล้ว", "manual-test", now, now),
+        )
 
 
 app = create_app()

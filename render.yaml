@@ -14,12 +14,6 @@ services:
         sync: false
       - key: LINE_CHANNEL_SECRET
         sync: false
-      - key: LINE_LOGIN_CHANNEL_ID
-        sync: false
-      - key: LINE_LOGIN_CHANNEL_SECRET
-        sync: false
-      - key: LINE_LOGIN_CALLBACK_URL
-        sync: false
       - key: SECRET_KEY
         generateValue: true
     disk:

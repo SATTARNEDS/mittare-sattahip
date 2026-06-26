@@ -121,6 +121,19 @@
         </div>
 
         <div class="agent-alerts" id="agent-alerts" role="status" aria-live="polite"></div>
+        <div class="admin-line-settings" aria-labelledby="admin-line-title">
+          <div>
+            <h3 id="admin-line-title">LINE ผู้ดูแลสำหรับรับแจ้งเตือน</h3>
+            <p>ระบบจะส่งแจ้งเตือนกรมธรรม์หมดอายุ ใกล้หมดอายุ นัดติดตาม และข้อความที่สร้างจากหลังบ้านไปยัง User ID นี้</p>
+          </div>
+          <form class="admin-line-settings__form" id="admin-line-settings-form">
+            <label class="sr-only" for="admin-line-user-id">LINE User ID ผู้ดูแล</label>
+            <input id="admin-line-user-id" name="adminLineUserId" type="text" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+            <button class="button button--primary" type="submit">บันทึกผู้ดูแล</button>
+            <button class="button button--dark" id="send-admin-alert" type="button">ส่งแจ้งเตือนผู้ดูแล</button>
+          </form>
+          <p id="admin-line-feedback" role="status" aria-live="polite"></p>
+        </div>
       </div>
     </section>
 
@@ -135,6 +148,7 @@
             <button class="text-button" type="reset">ล้างฟอร์ม</button>
           </div>
           <input type="hidden" id="policy-id" name="policyId">
+          <input type="hidden" id="line-user-id" name="lineUserId">
 
           <div class="form-grid">
             <div class="form-row">
@@ -153,20 +167,8 @@
               <input id="line-name" name="lineName" type="text" placeholder="@line หรือชื่อบัญชี">
             </div>
             <div class="form-row">
-              <label for="line-user-id">LINE User ID สำหรับ Push</label>
-              <input id="line-user-id" name="lineUserId" type="text" placeholder="เช่น Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-              <p class="field-help">ต้องเป็น User ID จาก LINE Messaging API ไม่ใช่ LINE ID หรือ @OA</p>
-            </div>
-          </div>
-
-          <div class="form-grid">
-            <div class="form-row">
               <label for="assigned-agent">ผู้ดูแล</label>
               <input id="assigned-agent" name="assignedAgent" type="text" placeholder="เช่น เทพา / พรรณี">
-            </div>
-            <div class="form-row">
-              <label for="line-push-note">สถานะ LINE Push</label>
-              <input id="line-push-note" type="text" value="บันทึก User ID แล้วจึงส่ง Push รายคนได้" readonly>
             </div>
           </div>
 
@@ -255,8 +257,8 @@
 
         <aside class="agent-message-panel" aria-labelledby="message-title">
           <p class="eyebrow eyebrow--dark"><span></span> Follow-up Message</p>
-          <h2 id="message-title">ข้อความติดตามแบบกดส่งเอง</h2>
-          <p>เลือกกรมธรรม์ในรายการ แล้วส่งได้ทั้งคัดลอก เปิด LINE พร้อมข้อความ หรือ Push ผ่าน LINE Messaging API ทีละคน</p>
+          <h2 id="message-title">ข้อความติดตามสำหรับแจ้งผู้ดูแล</h2>
+          <p>เลือกกรมธรรม์ในรายการ แล้วคัดลอก เปิด LINE หรือส่ง Push ไปที่ LINE ผู้ดูแลโดยตรง</p>
           <div class="form-row">
             <label for="message-tone">รูปแบบข้อความ</label>
             <select id="message-tone">
@@ -270,16 +272,16 @@
           <div class="agent-message-actions">
             <button class="button button--primary" id="copy-message" type="button">คัดลอกข้อความ</button>
             <a class="button button--dark" id="open-line-share" href="#" target="_blank" rel="noopener" aria-disabled="true">เปิด LINE</a>
-            <button class="button button--dark" id="push-line-message" type="button" disabled>ส่ง LINE Push</button>
+            <button class="button button--dark" id="push-line-message" type="button" disabled>ส่งให้ผู้ดูแล</button>
           </div>
-          <p class="agent-note" id="line-push-feedback" role="status" aria-live="polite">LINE Push ต้องตั้งค่า LINE_CHANNEL_ACCESS_TOKEN และบันทึก LINE User ID ของลูกค้าก่อน</p>
+          <p class="agent-note" id="line-push-feedback" role="status" aria-live="polite">LINE Push ต้องตั้งค่า LINE_CHANNEL_ACCESS_TOKEN และบันทึก LINE User ID ผู้ดูแลก่อน</p>
           <div class="line-contact-panel">
             <div class="line-contact-panel__header">
-              <strong>LINE ที่ทักเข้ามาล่าสุด</strong>
+              <strong>LINE User ID ที่ทักเข้ามาล่าสุด</strong>
               <button class="text-button" id="refresh-line-contacts" type="button">รีเฟรช</button>
             </div>
             <div class="line-contact-list" id="line-contact-list">
-              <span>เมื่อมีลูกค้าทัก LINE OA ระบบจะแสดง User ID ตรงนี้</span>
+              <span>เมื่อผู้ดูแลทัก LINE OA ระบบจะแสดง User ID ตรงนี้เพื่อนำไปใช้เป็นผู้รับแจ้งเตือน</span>
             </div>
           </div>
         </aside>
@@ -374,7 +376,7 @@
               <option value="lost">ปิดงานไม่สำเร็จ</option>
             </select>
           </div>
-          <button class="button button--dark" id="add-sample-data" type="button">เพิ่มข้อมูลทดสอบ LINE</button>
+          <button class="button button--dark" id="add-sample-data" type="button">เพิ่มข้อมูลตัวอย่าง</button>
         </div>
 
         <div class="agent-table-wrap">
