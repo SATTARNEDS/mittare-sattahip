@@ -124,14 +124,13 @@
         <div class="admin-line-settings" aria-labelledby="admin-line-title">
           <div>
             <h3 id="admin-line-title">LINE ผู้ดูแลสำหรับรับแจ้งเตือน</h3>
-            <p>ระบบจะส่งแจ้งเตือนกรมธรรม์หมดอายุ ใกล้หมดอายุ นัดติดตาม และข้อความที่สร้างจากหลังบ้านไปยัง User ID นี้</p>
+            <p>ผู้รับแจ้งเตือนถูกกำหนดไว้บนเซิร์ฟเวอร์เพื่อไม่ให้แก้ไขจากหน้าเว็บโดยไม่ตั้งใจ</p>
           </div>
-          <form class="admin-line-settings__form" id="admin-line-settings-form">
-            <label class="sr-only" for="admin-line-user-id">LINE User ID ผู้ดูแล</label>
-            <input id="admin-line-user-id" name="adminLineUserId" type="text" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-            <button class="button button--primary" type="submit">บันทึกผู้ดูแล</button>
+          <div class="admin-line-settings__status">
+            <span class="admin-line-settings__badge">Server Config</span>
+            <strong id="admin-line-recipient">กำลังตรวจสอบผู้รับแจ้งเตือน</strong>
             <button class="button button--dark" id="send-admin-alert" type="button">ส่งแจ้งเตือนผู้ดูแล</button>
-          </form>
+          </div>
           <p id="admin-line-feedback" role="status" aria-live="polite"></p>
         </div>
       </div>
@@ -330,16 +329,7 @@
             <a class="button button--dark" id="open-line-share" href="#" target="_blank" rel="noopener" aria-disabled="true">เปิด LINE</a>
             <button class="button button--dark" id="push-line-message" type="button" disabled>ส่งให้ผู้ดูแล</button>
           </div>
-          <p class="agent-note" id="line-push-feedback" role="status" aria-live="polite">LINE Push ต้องตั้งค่า LINE_CHANNEL_ACCESS_TOKEN และบันทึก LINE User ID ผู้ดูแลก่อน</p>
-          <div class="line-contact-panel">
-            <div class="line-contact-panel__header">
-              <strong>LINE User ID ที่ทักเข้ามาล่าสุด</strong>
-              <button class="text-button" id="refresh-line-contacts" type="button">รีเฟรช</button>
-            </div>
-            <div class="line-contact-list" id="line-contact-list">
-              <span>เมื่อผู้ดูแลทัก LINE OA ระบบจะแสดง User ID ตรงนี้เพื่อนำไปใช้เป็นผู้รับแจ้งเตือน</span>
-            </div>
-          </div>
+          <p class="agent-note" id="line-push-feedback" role="status" aria-live="polite">LINE Push ต้องตั้งค่า LINE_CHANNEL_ACCESS_TOKEN และ ADMIN_LINE_USER_ID บนเซิร์ฟเวอร์</p>
         </aside>
       </div>
     </section>

@@ -392,15 +392,27 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
   gap: 14px;
 }
 .agent-stat-card {
+  position: relative;
   display: grid;
   min-height: 170px;
+  overflow: hidden;
   padding: 24px;
-  background: var(--white);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,255,255,.92)),
+    var(--white);
   border: 1px solid rgba(7,86,79,.08);
   border-radius: 20px;
   box-shadow: 0 16px 40px rgba(6,63,59,.08);
 }
+.agent-stat-card::before {
+  width: 46px;
+  height: 4px;
+  content: "";
+  background: var(--green-800);
+  border-radius: 999px;
+}
 .agent-stat-card span {
+  margin-top: 18px;
   color: var(--muted);
   font-size: .78rem;
   font-weight: 700;
@@ -416,6 +428,9 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
 }
 .agent-stat-card--alert strong {
   color: #b3261e;
+}
+.agent-stat-card--alert::before {
+  background: #b3261e;
 }
 .agent-alerts {
   display: grid;
@@ -441,12 +456,14 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
 }
 .admin-line-settings {
   display: grid;
-  grid-template-columns: minmax(0, .9fr) minmax(360px, 1.1fr);
-  gap: 18px;
-  align-items: start;
-  padding: 18px;
+  grid-template-columns: minmax(0, .95fr) minmax(320px, 1.05fr);
+  gap: 20px;
+  align-items: center;
+  padding: 22px;
   margin-top: 18px;
-  background: var(--white);
+  background:
+    linear-gradient(135deg, rgba(6,63,59,.04), rgba(255,217,26,.12)),
+    var(--white);
   border: 1px solid rgba(7,86,79,.08);
   border-radius: 20px;
   box-shadow: var(--shadow);
@@ -461,27 +478,43 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
   color: var(--muted);
   font-size: .8rem;
 }
-.admin-line-settings__form {
+.admin-line-settings__status {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
 }
-.admin-line-settings__form input {
-  width: 100%;
-  min-height: 48px;
-  padding: 0 14px;
-  color: var(--ink);
-  background: var(--cream);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  outline: none;
+.admin-line-settings__badge {
+  display: inline-flex;
+  width: max-content;
+  min-height: 30px;
+  padding: 0 11px;
+  align-items: center;
+  color: var(--green-950);
+  background: var(--yellow);
+  border-radius: 999px;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
 }
-.admin-line-settings__form .button {
+.admin-line-settings__status strong {
+  min-width: 0;
+  color: var(--green-950);
+  font-size: .92rem;
+  overflow-wrap: anywhere;
+}
+.admin-line-settings__status .button {
   min-height: 48px;
   white-space: nowrap;
+  grid-row: span 2;
 }
 #admin-line-feedback {
   grid-column: 2;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(7,86,79,.08);
+  border-radius: 12px;
 }
 .agent-workspace {
   background: var(--green-950);
@@ -792,76 +825,17 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
   color: var(--muted);
   font-size: .76rem;
 }
-.line-contact-panel {
-  display: grid;
-  gap: 10px;
-  padding: 14px;
-  margin-top: 16px;
-  background: var(--cream);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-}
-.line-contact-panel__header,
-.line-contact-item {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: space-between;
-}
-.line-contact-panel__header strong {
-  color: var(--green-950);
-  font-size: .86rem;
-}
-.line-contact-list {
-  display: grid;
-  gap: 8px;
-}
-.line-contact-list > span {
-  color: var(--muted);
-  font-size: .78rem;
-}
-.line-contact-item {
-  padding: 10px;
-  background: var(--white);
-  border-radius: 12px;
-}
-.line-contact-item div {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-.line-contact-item strong,
-.line-contact-item code {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.line-contact-item strong {
-  color: var(--green-900);
-  font-size: .78rem;
-}
-.line-contact-item code {
-  color: var(--muted);
-  font-size: .7rem;
-}
-.line-contact-item button {
-  min-height: 32px;
-  padding: 0 10px;
-  color: var(--green-950);
-  background: var(--yellow);
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
-  font-size: .72rem;
-  font-weight: 800;
-  white-space: nowrap;
-}
 .agent-toolbar {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) 220px auto;
   gap: 12px;
   align-items: start;
   margin-bottom: 18px;
+  padding: 12px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(7,86,79,.08);
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(6,63,59,.05);
 }
 .agent-filter {
   margin: 0;
@@ -894,11 +868,19 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
 }
 .agent-table th {
   color: var(--green-900);
-  background: var(--green-100);
+  background: #edf7f3;
   font-size: .76rem;
+  font-weight: 900;
+  letter-spacing: .04em;
 }
 .agent-table td {
   font-size: .84rem;
+}
+.agent-table tbody tr {
+  transition: background .18s ease, transform .18s ease;
+}
+.agent-table tbody tr:hover td {
+  background: #fbfdfb;
 }
 .agent-table tr.is-selected td {
   background: #fffbe0;
@@ -952,12 +934,18 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
   min-height: 34px;
   padding: 0 10px;
   color: var(--green-900);
-  background: var(--white);
+  background: #f7fbf7;
   border: 1px solid var(--line);
   border-radius: 999px;
   cursor: pointer;
   font-size: .72rem;
   font-weight: 800;
+  transition: background .18s ease, color .18s ease, transform .18s ease;
+}
+.agent-table-actions button:hover {
+  color: var(--green-950);
+  background: var(--green-100);
+  transform: translateY(-1px);
 }
 .agent-table-actions button:first-child {
   color: var(--green-950);
@@ -1451,8 +1439,11 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .admin-line-settings,
-  .admin-line-settings__form {
+  .admin-line-settings__status {
     grid-template-columns: 1fr;
+  }
+  .admin-line-settings__status .button {
+    grid-row: auto;
   }
   #admin-line-feedback {
     grid-column: auto;

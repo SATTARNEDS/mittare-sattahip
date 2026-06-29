@@ -23,20 +23,15 @@ const productMediaPreview = document.querySelector("#product-media-preview");
 const mediaFeedback = document.querySelector("#media-feedback");
 const pushLineMessageButton = document.querySelector("#push-line-message");
 const linePushFeedback = document.querySelector("#line-push-feedback");
-const lineContactList = document.querySelector("#line-contact-list");
-const refreshLineContactsButton = document.querySelector("#refresh-line-contacts");
-const adminLineSettingsForm = document.querySelector("#admin-line-settings-form");
-const adminLineUserIdInput = document.querySelector("#admin-line-user-id");
 const adminLineFeedback = document.querySelector("#admin-line-feedback");
+const adminLineRecipient = document.querySelector("#admin-line-recipient");
 const sendAdminAlertButton = document.querySelector("#send-admin-alert");
 
 let policies = [];
 let selectedPolicyId = "";
 let productMedia = {};
-let lineContacts = [];
 let linePushConfigured = false;
-let lineWebhookConfigured = false;
-let adminLineUserId = "";
+let adminLineRecipientConfigured = false;
 
 function setAgentLoading(isLoading, message = "กำลังเตรียมข้อมูลหลังบ้าน") {
   if (!agentLoading) return;
@@ -192,9 +187,8 @@ async function initializeAgentDashboard() {
     setAgentLoading(true, "กำลังตรวจสอบสิทธิ์เข้าใช้งาน");
     const session = await apiFetch("/api/session");
     linePushConfigured = Boolean(session.linePushConfigured);
-    lineWebhookConfigured = Boolean(session.lineWebhookConfigured);
     setAuthenticated(session.authenticated);
-    if (session.authenticated) await Promise.all([refreshSettings(), refreshPolicies(), refreshProductMedia(), refreshLineContacts()]);
+    if (session.authenticated) await Promise.all([refreshSettings(), refreshPolicies(), refreshProductMedia()]);
   } catch (error) {
     loginFeedback.textContent = "กรุณารันผ่าน Flask server ด้วยคำสั่ง python app.py";
   } finally {
@@ -215,14 +209,17 @@ function setAuthenticated(isAuthenticated) {
 }
 
 function renderAdminLineState() {
-  const isReady = Boolean(linePushConfigured && adminLineUserId);
+  const isReady = Boolean(linePushConfigured && adminLineRecipientConfigured);
   if (sendAdminAlertButton) sendAdminAlertButton.disabled = !isReady;
   if (getSelectedPolicy()) renderMessage();
+  if (adminLineRecipient && !adminLineRecipient.textContent.trim()) {
+    adminLineRecipient.textContent = "ผู้รับแจ้งเตือนยังไม่พร้อม";
+  }
   if (!adminLineFeedback) return;
   if (!linePushConfigured) {
     adminLineFeedback.textContent = "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์";
-  } else if (!adminLineUserId) {
-    adminLineFeedback.textContent = "กรุณาบันทึก LINE User ID ผู้ดูแลก่อนส่งแจ้งเตือน";
+  } else if (!adminLineRecipientConfigured) {
+    adminLineFeedback.textContent = "ยังไม่ได้ตั้งค่า ADMIN_LINE_USER_ID บนเซิร์ฟเวอร์";
   } else {
     adminLineFeedback.textContent = "พร้อมส่งแจ้งเตือนผ่าน LINE ให้ผู้ดูแล";
   }
@@ -230,8 +227,12 @@ function renderAdminLineState() {
 
 async function refreshSettings() {
   const settings = await apiFetch("/api/settings");
-  adminLineUserId = settings.adminLineUserId || "";
-  if (adminLineUserIdInput) adminLineUserIdInput.value = adminLineUserId;
+  adminLineRecipientConfigured = Boolean(settings.adminLineRecipientConfigured);
+  if (adminLineRecipient) {
+    adminLineRecipient.textContent = adminLineRecipientConfigured
+      ? `ผู้รับแจ้งเตือน: ${settings.adminLineUserIdMasked || "ตั้งค่าบนเซิร์ฟเวอร์แล้ว"}`
+      : "ยังไม่ได้ตั้งค่า ADMIN_LINE_USER_ID";
+  }
   renderAdminLineState();
 }
 
@@ -254,16 +255,6 @@ async function refreshProductMedia() {
     renderProductMediaList();
   } finally {
     setAgentLoading(false);
-  }
-}
-
-async function refreshLineContacts() {
-  if (!lineContactList) return;
-  try {
-    lineContacts = await apiFetch("/api/line/contacts");
-    renderLineContacts();
-  } catch (error) {
-    lineContactList.innerHTML = `<span>${escapeHtml(error.message)}</span>`;
   }
 }
 
@@ -432,25 +423,6 @@ function renderPolicyProductOptions(selectedValue = "") {
     ...values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
   ].join("");
   productSelect.value = selectedValue || "";
-}
-
-function renderLineContacts() {
-  if (!lineContactList) return;
-  if (!lineContacts.length) {
-    lineContactList.innerHTML = `
-      <span>${lineWebhookConfigured ? "ยังไม่มี LINE User ID ที่ทัก OA เข้ามา" : "ยังไม่ได้ตั้งค่า LINE_CHANNEL_SECRET สำหรับ Webhook"}</span>
-    `;
-    return;
-  }
-  lineContactList.innerHTML = lineContacts.map((contact) => `
-    <div class="line-contact-item">
-      <div>
-        <strong>${escapeHtml(contact.latestMessage || contact.latestEventType || "LINE contact")}</strong>
-        <code>${escapeHtml(contact.lineUserId)}</code>
-      </div>
-      <button type="button" data-use-line-user-id="${escapeHtml(contact.lineUserId)}">ใช้เป็นผู้ดูแล</button>
-    </div>
-  `).join("");
 }
 
 function renderCurrentAttachments(policy) {
@@ -628,12 +600,12 @@ function renderMessage() {
   generatedMessage.value = messages[tone];
   openLineShare.href = `https://line.me/R/msg/text/?${encodeURIComponent(generatedMessage.value)}`;
   openLineShare.removeAttribute("aria-disabled");
-  pushLineMessageButton.disabled = !linePushConfigured || !adminLineUserId;
+  pushLineMessageButton.disabled = !linePushConfigured || !adminLineRecipientConfigured;
   linePushFeedback.textContent = !linePushConfigured
     ? "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์"
-    : adminLineUserId
+    : adminLineRecipientConfigured
       ? "พร้อมส่ง LINE Push ให้ผู้ดูแล"
-      : "กรุณาบันทึก LINE User ID ผู้ดูแลก่อน";
+      : "ยังไม่ได้ตั้งค่า ADMIN_LINE_USER_ID บนเซิร์ฟเวอร์";
 }
 
 function renderAll() {
@@ -674,7 +646,6 @@ async function addSampleData() {
     body: JSON.stringify({})
   });
   await refreshPolicies();
-  await refreshLineContacts();
   formFeedback.textContent = "เพิ่มข้อมูลตัวอย่างลง SQLite แล้ว ใช้ทดสอบแจ้งเตือนผู้ดูแลได้";
 }
 
@@ -760,22 +731,6 @@ async function pushSelectedLineMessage() {
   }
 }
 
-async function saveAdminLineSettings(event) {
-  event.preventDefault();
-  const adminLineUserIdValue = new FormData(adminLineSettingsForm).get("adminLineUserId");
-  adminLineFeedback.textContent = "กำลังบันทึก LINE User ID ผู้ดูแล...";
-  try {
-    const settings = await apiFetch("/api/settings", {
-      method: "PUT",
-      body: JSON.stringify({ adminLineUserId: adminLineUserIdValue })
-    });
-    adminLineUserId = settings.adminLineUserId || "";
-    renderAdminLineState();
-  } catch (error) {
-    adminLineFeedback.textContent = error.message;
-  }
-}
-
 async function sendAdminAlertSummary() {
   sendAdminAlertButton.disabled = true;
   adminLineFeedback.textContent = "กำลังส่งสรุปแจ้งเตือนให้ผู้ดูแล...";
@@ -802,7 +757,7 @@ loginForm?.addEventListener("submit", async (event) => {
     });
     loginForm.reset();
     setAuthenticated(true);
-    await Promise.all([refreshSettings(), refreshPolicies(), refreshProductMedia(), refreshLineContacts()]);
+    await Promise.all([refreshSettings(), refreshPolicies(), refreshProductMedia()]);
   } catch (error) {
     loginFeedback.textContent = error.message;
   }
@@ -813,8 +768,7 @@ logoutButton?.addEventListener("click", async () => {
   policies = [];
   selectedPolicyId = "";
   productMedia = {};
-  lineContacts = [];
-  adminLineUserId = "";
+  adminLineRecipientConfigured = false;
   setAuthenticated(false);
 });
 
@@ -864,21 +818,8 @@ productMediaPreview?.addEventListener("click", (event) => {
   editProductMedia(button.dataset.editMediaPlan, button.dataset.mediaType);
 });
 
-adminLineSettingsForm?.addEventListener("submit", saveAdminLineSettings);
 sendAdminAlertButton?.addEventListener("click", sendAdminAlertSummary);
 pushLineMessageButton?.addEventListener("click", pushSelectedLineMessage);
-refreshLineContactsButton?.addEventListener("click", refreshLineContacts);
-lineContactList?.addEventListener("click", async (event) => {
-  const button = event.target.closest("button[data-use-line-user-id]");
-  if (!button) return;
-  adminLineUserIdInput.value = button.dataset.useLineUserId;
-  try {
-    await navigator.clipboard.writeText(button.dataset.useLineUserId);
-    adminLineFeedback.textContent = "ใส่ LINE User ID ผู้ดูแลและคัดลอกแล้ว กดบันทึกผู้ดูแลเพื่อใช้งาน";
-  } catch (error) {
-    adminLineFeedback.textContent = "ใส่ LINE User ID ผู้ดูแลแล้ว กดบันทึกผู้ดูแลเพื่อใช้งาน";
-  }
-});
 
 document.querySelector("#copy-message")?.addEventListener("click", async () => {
   if (!generatedMessage.value) return;

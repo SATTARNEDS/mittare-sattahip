@@ -35,6 +35,7 @@ DATABASE_PATH = INSTANCE_DIR / "mittare.sqlite3"
 ALLOWED_UPLOAD_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "pdf", "doc", "docx", "xls", "xlsx"}
 ALLOWED_PRODUCT_MEDIA_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "pdf"}
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+DEFAULT_ADMIN_LINE_USER_ID = "Ueaebf5b870fcdd317383855ff445e460"
 
 DEFAULT_PRODUCT_MEDIA = {
     "motor-1": {"folder": "รถยนต์ประเภท1", "images": 6, "cover": "assets/insurance-motor.png"},
@@ -72,6 +73,7 @@ def create_app() -> Flask:
     app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD", "admin123")
     app.config["LINE_CHANNEL_ACCESS_TOKEN"] = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
     app.config["LINE_CHANNEL_SECRET"] = os.environ.get("LINE_CHANNEL_SECRET", "")
+    app.config["ADMIN_LINE_USER_ID"] = os.environ.get("ADMIN_LINE_USER_ID", DEFAULT_ADMIN_LINE_USER_ID)
 
     INSTANCE_DIR.mkdir(exist_ok=True)
     UPLOAD_DIR.mkdir(exist_ok=True)
@@ -135,19 +137,11 @@ def create_app() -> Flask:
     @app.get("/api/settings")
     @require_admin
     def get_settings():
-        with get_db() as db:
-            return jsonify({
-                "adminLineUserId": get_setting(db, "admin_line_user_id"),
-            })
-
-    @app.put("/api/settings")
-    @require_admin
-    def update_settings():
-        data = request.get_json(silent=True) or {}
-        admin_line_user_id = str(data.get("adminLineUserId", "")).strip()
-        with get_db() as db:
-            set_setting(db, "admin_line_user_id", admin_line_user_id)
-        return jsonify({"adminLineUserId": admin_line_user_id})
+        admin_line_user_id = get_admin_line_user_id(app)
+        return jsonify({
+            "adminLineRecipientConfigured": bool(admin_line_user_id),
+            "adminLineUserIdMasked": mask_line_user_id(admin_line_user_id),
+        })
 
     @app.get("/api/policies")
     @require_admin
@@ -305,9 +299,9 @@ def create_app() -> Flask:
         data = request.get_json(silent=True) or {}
         custom_message = str(data.get("message", "")).strip()
         with get_db() as db:
-            admin_line_user_id = get_setting(db, "admin_line_user_id")
+            admin_line_user_id = get_admin_line_user_id(app)
             if not admin_line_user_id:
-                return jsonify({"error": "กรุณาบันทึก LINE User ID ผู้ดูแลก่อน"}), 400
+                return jsonify({"error": "ยังไม่ได้ตั้งค่า ADMIN_LINE_USER_ID บนเซิร์ฟเวอร์"}), 400
             message = custom_message or build_admin_alert_message(db)
             try:
                 response_payload = send_line_push_message(token, admin_line_user_id, message)
@@ -347,9 +341,9 @@ def create_app() -> Flask:
             policy = db.execute("SELECT * FROM policies WHERE id = ?", (policy_id,)).fetchone()
             if not policy:
                 return jsonify({"error": "ไม่พบกรมธรรม์"}), 404
-            line_user_id = get_setting(db, "admin_line_user_id")
+            line_user_id = get_admin_line_user_id(app)
             if not line_user_id:
-                return jsonify({"error": "กรุณาบันทึก LINE User ID ผู้ดูแลก่อน"}), 400
+                return jsonify({"error": "ยังไม่ได้ตั้งค่า ADMIN_LINE_USER_ID บนเซิร์ฟเวอร์"}), 400
 
             try:
                 response_payload = send_line_push_message(token, line_user_id, message)
@@ -1085,6 +1079,18 @@ def delete_product_media_file(stored_filename: str | None) -> None:
     target = PRODUCT_MEDIA_DIR / Path(stored_filename).name
     if target.exists() and target.is_file():
         target.unlink()
+
+
+def get_admin_line_user_id(app: Flask) -> str:
+    return str(app.config.get("ADMIN_LINE_USER_ID", "")).strip()
+
+
+def mask_line_user_id(line_user_id: str) -> str:
+    if not line_user_id:
+        return ""
+    if len(line_user_id) <= 12:
+        return "ตั้งค่าบนเซิร์ฟเวอร์แล้ว"
+    return f"{line_user_id[:6]}...{line_user_id[-6:]}"
 
 
 def send_line_push_message(token: str, line_user_id: str, message: str) -> dict[str, Any]:
