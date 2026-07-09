@@ -41,10 +41,15 @@ const activityForm = document.querySelector("#activity-form");
 const activityTimeline = document.querySelector("#activity-timeline");
 const activityFeedback = document.querySelector("#activity-feedback");
 const saveActivityButton = document.querySelector("#save-activity");
+const reportStatusList = document.querySelector("#report-status-list");
+const reportAgentList = document.querySelector("#report-agent-list");
+const auditLogList = document.querySelector("#audit-log-list");
+const reportFeedback = document.querySelector("#report-feedback");
 
 let policies = [];
 let selectedPolicyId = "";
 let productMedia = {};
+let reportOverview = null;
 let linePushConfigured = false;
 let adminLineRecipientConfigured = false;
 
@@ -202,7 +207,7 @@ async function initializeAgentDashboard() {
     const session = await apiFetch("/api/session");
     linePushConfigured = Boolean(session.linePushConfigured);
     setAuthenticated(session.authenticated);
-    if (session.authenticated) await Promise.all([refreshSettings(), refreshPolicies(), refreshProductMedia()]);
+    if (session.authenticated) await Promise.all([refreshSettings(), refreshPolicies(), refreshReports(), refreshProductMedia()]);
   } catch (error) {
     loginFeedback.textContent = "กรุณารันผ่าน Flask server ด้วยคำสั่ง python app.py";
   } finally {
@@ -260,6 +265,11 @@ async function refreshPolicies() {
   }
 }
 
+async function refreshPoliciesAndReports() {
+  await refreshPolicies();
+  await refreshReports();
+}
+
 async function refreshProductMedia() {
   if (!productMediaForm) return;
   setAgentLoading(true, "กำลังโหลดคลังรูปและเอกสาร");
@@ -272,6 +282,15 @@ async function refreshProductMedia() {
   }
 }
 
+async function refreshReports() {
+  try {
+    reportOverview = await apiFetch("/api/reports/overview");
+    renderReports();
+  } catch (error) {
+    if (reportFeedback) reportFeedback.textContent = error.message;
+  }
+}
+
 function formatDate(dateValue) {
   if (!dateValue) return "-";
   return new Intl.DateTimeFormat("th-TH", {
@@ -279,6 +298,17 @@ function formatDate(dateValue) {
     month: "short",
     day: "numeric"
   }).format(new Date(`${dateValue}T00:00:00`));
+}
+
+function formatDateTime(dateValue) {
+  if (!dateValue) return "-";
+  return new Intl.DateTimeFormat("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(dateValue));
 }
 
 function formatCurrency(value) {
@@ -355,6 +385,73 @@ function renderDashboard() {
   alertContainer.innerHTML = alerts.length
     ? alerts.map((alert) => `<p><strong>แจ้งเตือนภายใน</strong>${escapeHtml(alert)}</p>`).join("")
     : `<p><strong>แจ้งเตือนภายใน</strong>ยังไม่มีงานเร่งด่วนในวันนี้</p>`;
+}
+
+function renderReports() {
+  if (!reportOverview) {
+    setText("#report-renewal-rate", "0%");
+    setText("#report-active-count", "0");
+    setText("#report-document-missing", "0");
+    setText("#report-active-premium", "0");
+    if (reportStatusList) reportStatusList.innerHTML = "";
+    if (reportAgentList) reportAgentList.innerHTML = "";
+    if (auditLogList) auditLogList.innerHTML = "";
+    return;
+  }
+
+  const totals = reportOverview.totals || {};
+  setText("#report-renewal-rate", `${totals.renewalRate || 0}%`);
+  setText("#report-active-count", totals.active || 0);
+  setText("#report-document-missing", totals.documentsMissing || 0);
+  setText("#report-active-premium", formatCompactCurrency(totals.activePremium || 0));
+
+  if (reportStatusList) {
+    const maxStatus = Math.max(...(reportOverview.statusCounts || []).map((item) => item.count), 1);
+    reportStatusList.innerHTML = (reportOverview.statusCounts || []).length
+      ? reportOverview.statusCounts.map((item) => renderReportRow(item.label, `${item.count} งาน`, item.count / maxStatus)).join("")
+      : renderReportEmpty("ยังไม่มีสถานะงานให้สรุป");
+  }
+
+  if (reportAgentList) {
+    const maxAgent = Math.max(...(reportOverview.agentWorkload || []).map((item) => item.active), 1);
+    reportAgentList.innerHTML = (reportOverview.agentWorkload || []).length
+      ? reportOverview.agentWorkload.map((item) => renderReportRow(item.agent, `${item.active} งาน · ${formatCompactCurrency(item.premium)} บาท`, item.active / maxAgent)).join("")
+      : renderReportEmpty("ยังไม่มีผู้ดูแลในระบบ");
+  }
+
+  if (auditLogList) {
+    auditLogList.innerHTML = (reportOverview.recentAudit || []).length
+      ? reportOverview.recentAudit.map((event) => `
+        <article class="audit-log-item">
+          <span>${formatDateTime(event.createdAt)}</span>
+          <strong>${escapeHtml(event.summary)}</strong>
+          <small>${escapeHtml(event.action)} · ${escapeHtml(event.actor || "admin")}</small>
+        </article>
+      `).join("")
+      : renderReportEmpty("ยังไม่มีประวัติการแก้ไขสำคัญ");
+  }
+}
+
+function renderReportRow(label, value, ratio) {
+  const safeRatio = Math.max(0, Math.min(1, Number(ratio) || 0));
+  return `
+    <div class="report-row">
+      <div>
+        <strong>${escapeHtml(label)}</strong>
+        <span>${escapeHtml(value)}</span>
+      </div>
+      <i style="--report-ratio: ${safeRatio}"></i>
+    </div>
+  `;
+}
+
+function renderReportEmpty(message) {
+  return `
+    <div class="plan-empty plan-empty--compact">
+      <strong>${escapeHtml(message)}</strong>
+      <span>ข้อมูลจะอัปเดตเมื่อมีการบันทึกในหลังบ้าน</span>
+    </div>
+  `;
 }
 
 function renderPolicyTable() {
@@ -727,7 +824,7 @@ async function deletePolicy(policyId) {
 
   await apiFetch(`/api/policies/${policyId}`, { method: "DELETE" });
   if (selectedPolicyId === String(policyId)) selectedPolicyId = "";
-  await refreshPolicies();
+  await refreshPoliciesAndReports();
 }
 
 function renderMessage() {
@@ -764,6 +861,7 @@ function renderMessage() {
 
 function renderAll() {
   renderDashboard();
+  renderReports();
   renderPolicyTable();
   renderMessage();
   renderCarePanel();
@@ -779,7 +877,7 @@ async function handleFormSubmit(event) {
     const method = policyId ? "PUT" : "POST";
     const savedPolicy = await apiFetch(endpoint, { method, body: formData });
     selectedPolicyId = String(savedPolicy.id);
-    await refreshPolicies();
+    await refreshPoliciesAndReports();
     if (wasEditing) {
       editPolicy(savedPolicy.id);
       formFeedback.textContent = "อัปเดตข้อมูลกรมธรรม์เรียบร้อยแล้ว";
@@ -798,7 +896,7 @@ async function removeAttachment(attachmentId) {
   const confirmed = window.confirm("ต้องการลบไฟล์แนบนี้ใช่ไหม");
   if (!confirmed) return;
   await apiFetch(`/api/attachments/${attachmentId}`, { method: "DELETE" });
-  await refreshPolicies();
+  await refreshPoliciesAndReports();
   const policyId = document.querySelector("#policy-id").value;
   if (policyId) renderCurrentAttachments(policies.find((item) => String(item.id) === String(policyId)));
 }
@@ -822,6 +920,7 @@ async function saveDocumentChecklist() {
     });
     policies = policies.map((item) => String(item.id) === String(updatedPolicy.id) ? updatedPolicy : item);
     documentFeedback.textContent = "บันทึก Checklist เอกสารเรียบร้อยแล้ว";
+    await refreshReports();
     renderAll();
   } catch (error) {
     documentFeedback.textContent = error.message;
@@ -850,7 +949,7 @@ async function handleActivitySubmit(event) {
     activityForm.reset();
     document.querySelector("#activity-date").valueAsDate = new Date();
     activityFeedback.textContent = "เพิ่ม Timeline การติดต่อลูกค้าแล้ว";
-    await refreshPolicies();
+    await refreshPoliciesAndReports();
   } catch (error) {
     activityFeedback.textContent = error.message;
   } finally {
@@ -864,7 +963,7 @@ async function deleteActivity(activityId) {
   try {
     await apiFetch(`/api/policy-activities/${activityId}`, { method: "DELETE" });
     activityFeedback.textContent = "ลบบันทึก Timeline แล้ว";
-    await refreshPolicies();
+    await refreshPoliciesAndReports();
   } catch (error) {
     activityFeedback.textContent = error.message;
   }
@@ -875,7 +974,7 @@ async function addSampleData() {
     method: "POST",
     body: JSON.stringify({})
   });
-  await refreshPolicies();
+  await refreshPoliciesAndReports();
   formFeedback.textContent = "เพิ่มข้อมูลตัวอย่างลง SQLite แล้ว ใช้ทดสอบแจ้งเตือนผู้ดูแลได้";
 }
 
@@ -897,7 +996,7 @@ async function clearAllData() {
   await apiFetch("/api/policies", { method: "DELETE" });
   selectedPolicyId = "";
   resetForm();
-  await refreshPolicies();
+  await refreshPoliciesAndReports();
   backupFeedback.textContent = "ลบข้อมูลทั้งหมดแล้ว";
 }
 
@@ -987,7 +1086,7 @@ loginForm?.addEventListener("submit", async (event) => {
     });
     loginForm.reset();
     setAuthenticated(true);
-    await Promise.all([refreshSettings(), refreshPolicies(), refreshProductMedia()]);
+    await Promise.all([refreshSettings(), refreshPolicies(), refreshReports(), refreshProductMedia()]);
   } catch (error) {
     loginFeedback.textContent = error.message;
   }

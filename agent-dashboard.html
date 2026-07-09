@@ -40,6 +40,7 @@
           <a href="#policy-form">เพิ่มกรมธรรม์</a>
           <a href="#policy-list">รายการติดตาม</a>
           <a href="#customer-care">งานลูกค้า</a>
+          <a href="#admin-reports">รายงาน</a>
           <a href="#media-manager">คลังรูปเว็บ</a>
           <a class="button button--small button--dark" href="#agent-tools">สำรองข้อมูล</a>
           <button class="text-button" id="logout-button" type="button">ออกจากระบบ</button>
@@ -143,6 +144,57 @@
             <button class="button button--dark" id="send-admin-alert" type="button">ส่งแจ้งเตือนผู้ดูแล</button>
           </div>
           <p id="admin-line-feedback" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="agent-report-section section" id="admin-reports" aria-labelledby="admin-reports-title">
+      <div class="container">
+        <div class="section-heading agent-heading">
+          <div>
+            <p class="eyebrow eyebrow--dark"><span></span> Reports & Audit</p>
+            <h2 id="admin-reports-title">รายงานและประวัติระบบ</h2>
+          </div>
+          <p>สรุปงานต่ออายุ เอกสารค้าง และประวัติการแก้ไขสำคัญจากฐานข้อมูล SQLite</p>
+        </div>
+
+        <div class="report-metric-grid" aria-live="polite">
+          <article class="report-metric-card">
+            <span>อัตราต่ออายุ</span>
+            <strong id="report-renewal-rate">0%</strong>
+            <small>เทียบจากกรมธรรม์ทั้งหมด</small>
+          </article>
+          <article class="report-metric-card">
+            <span>งาน active</span>
+            <strong id="report-active-count">0</strong>
+            <small>ยังไม่ปิดงาน</small>
+          </article>
+          <article class="report-metric-card">
+            <span>เอกสารค้าง</span>
+            <strong id="report-document-missing">0</strong>
+            <small>ควรติดตามก่อนส่งงาน</small>
+          </article>
+          <article class="report-metric-card">
+            <span>เบี้ย active</span>
+            <strong id="report-active-premium">0</strong>
+            <small>ยอดประมาณจากข้อมูลที่บันทึก</small>
+          </article>
+        </div>
+
+        <div class="report-grid">
+          <section class="report-panel" aria-labelledby="status-report-title">
+            <h3 id="status-report-title">Pipeline ตามสถานะ</h3>
+            <div class="report-list" id="report-status-list"></div>
+          </section>
+          <section class="report-panel" aria-labelledby="agent-workload-title">
+            <h3 id="agent-workload-title">งานตามผู้ดูแล</h3>
+            <div class="report-list" id="report-agent-list"></div>
+          </section>
+          <section class="report-panel report-panel--wide" aria-labelledby="audit-log-title">
+            <h3 id="audit-log-title">Audit Log ล่าสุด</h3>
+            <div class="audit-log-list" id="audit-log-list"></div>
+            <p class="agent-note" id="report-feedback" role="status" aria-live="polite">ประวัติระบบจะแสดงเฉพาะการกระทำสำคัญในหลังบ้าน</p>
+          </section>
         </div>
       </div>
     </section>

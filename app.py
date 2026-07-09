@@ -161,6 +161,12 @@ def create_app() -> Flask:
             "adminLineUserIdMasked": mask_line_user_id(admin_line_user_id),
         })
 
+    @app.get("/api/reports/overview")
+    @require_admin
+    def get_reports_overview():
+        with get_db() as db:
+            return jsonify(build_reports_overview(db))
+
     @app.get("/api/policies")
     @require_admin
     def list_policies():
@@ -173,6 +179,8 @@ def create_app() -> Flask:
     def delete_all_policies():
         with get_db() as db:
             attachments = db.execute("SELECT stored_filename FROM attachments").fetchall()
+            total = db.execute("SELECT COUNT(*) AS total FROM policies").fetchone()["total"]
+            log_audit_event(db, "policy.delete_all", None, "ลบข้อมูลกรมธรรม์ทั้งหมด", {"count": total})
             db.execute("DELETE FROM policies")
         for attachment in attachments:
             delete_upload_file(attachment["stored_filename"])
@@ -218,6 +226,7 @@ def create_app() -> Flask:
             )
             policy_id = cursor.lastrowid
             save_uploaded_files(db, policy_id)
+            log_audit_event(db, "policy.create", policy_id, f"เพิ่มกรมธรรม์ {payload['customer_name']}", {"publicRef": public_ref})
             row = db.execute("SELECT * FROM policies WHERE id = ?", (policy_id,)).fetchone()
             return jsonify(policy_to_dict(db, row, include_private=True)), 201
 
@@ -259,6 +268,7 @@ def create_app() -> Flask:
                 ),
             )
             save_uploaded_files(db, policy_id)
+            log_audit_event(db, "policy.update", policy_id, f"แก้ไขกรมธรรม์ {payload['customer_name']}", {"salesStatus": payload["sales_status"]})
             row = db.execute("SELECT * FROM policies WHERE id = ?", (policy_id,)).fetchone()
             return jsonify(policy_to_dict(db, row, include_private=True))
 
@@ -266,7 +276,10 @@ def create_app() -> Flask:
     @require_admin
     def delete_policy(policy_id: int):
         with get_db() as db:
+            policy = db.execute("SELECT customer_name, policy_number, public_ref FROM policies WHERE id = ?", (policy_id,)).fetchone()
             attachments = db.execute("SELECT stored_filename FROM attachments WHERE policy_id = ?", (policy_id,)).fetchall()
+            if policy:
+                log_audit_event(db, "policy.delete", policy_id, f"ลบกรมธรรม์ {policy['customer_name']}", {"reference": policy["policy_number"] or policy["public_ref"]})
             db.execute("DELETE FROM policies WHERE id = ?", (policy_id,))
         for attachment in attachments:
             delete_upload_file(attachment["stored_filename"])
@@ -279,6 +292,7 @@ def create_app() -> Flask:
             attachment = db.execute("SELECT stored_filename FROM attachments WHERE id = ?", (attachment_id,)).fetchone()
             if not attachment:
                 return jsonify({"error": "ไม่พบไฟล์แนบ"}), 404
+            log_audit_event(db, "attachment.delete", None, "ลบไฟล์แนบกรมธรรม์", {"filename": attachment["stored_filename"]})
             db.execute("DELETE FROM attachments WHERE id = ?", (attachment_id,))
         delete_upload_file(attachment["stored_filename"])
         return jsonify({"ok": True})
@@ -327,6 +341,7 @@ def create_app() -> Flask:
                     "UPDATE policies SET next_follow_up = ?, updated_at = ? WHERE id = ?",
                     (next_follow_up, now, policy_id),
                 )
+            log_audit_event(db, "activity.create", policy_id, "เพิ่ม Timeline การติดต่อลูกค้า", {"activityType": activity_type})
             row = db.execute("SELECT * FROM policy_activities WHERE id = ?", (cursor.lastrowid,)).fetchone()
         return jsonify(activity_to_dict(row)), 201
 
@@ -337,6 +352,7 @@ def create_app() -> Flask:
             activity = db.execute("SELECT id FROM policy_activities WHERE id = ?", (activity_id,)).fetchone()
             if not activity:
                 return jsonify({"error": "ไม่พบบันทึกนี้"}), 404
+            log_audit_event(db, "activity.delete", None, "ลบ Timeline การติดต่อลูกค้า", {"activityId": activity_id})
             db.execute("DELETE FROM policy_activities WHERE id = ?", (activity_id,))
         return jsonify({"ok": True})
 
@@ -364,6 +380,7 @@ def create_app() -> Flask:
                     (policy_id, item["label"], int(item["completed"]), index, now),
                 )
             db.execute("UPDATE policies SET updated_at = ? WHERE id = ?", (now, policy_id))
+            log_audit_event(db, "documents.update", policy_id, "อัปเดต Checklist เอกสาร", {"items": len(items)})
             row = db.execute("SELECT * FROM policies WHERE id = ?", (policy_id,)).fetchone()
             payload = policy_to_dict(db, row, include_private=True)
         return jsonify(payload)
@@ -780,6 +797,17 @@ def initialize_database() -> None:
               FOREIGN KEY (policy_id) REFERENCES policies(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS audit_logs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              action TEXT NOT NULL,
+              policy_id INTEGER,
+              actor TEXT NOT NULL DEFAULT 'admin',
+              summary TEXT NOT NULL,
+              detail_json TEXT NOT NULL DEFAULT '{}',
+              created_at TEXT NOT NULL,
+              FOREIGN KEY (policy_id) REFERENCES policies(id) ON DELETE SET NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_policies_end_date ON policies(end_date);
             CREATE INDEX IF NOT EXISTS idx_policies_phone ON policies(customer_phone);
             CREATE INDEX IF NOT EXISTS idx_attachments_policy ON attachments(policy_id);
@@ -789,6 +817,8 @@ def initialize_database() -> None:
             CREATE INDEX IF NOT EXISTS idx_line_admin_message_logs_created ON line_admin_message_logs(created_at);
             CREATE INDEX IF NOT EXISTS idx_policy_activities_policy ON policy_activities(policy_id);
             CREATE INDEX IF NOT EXISTS idx_policy_document_items_policy ON policy_document_items(policy_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_policy ON audit_logs(policy_id);
             """
         )
         ensure_column(db, "policies", "line_user_id", "TEXT DEFAULT ''")
@@ -822,6 +852,118 @@ def set_setting(db: sqlite3.Connection, key: str, value: str) -> None:
         """,
         (key, value, utc_now()),
     )
+
+
+def log_audit_event(
+    db: sqlite3.Connection,
+    action: str,
+    policy_id: int | None,
+    summary: str,
+    detail: dict[str, Any] | None = None,
+) -> None:
+    db.execute(
+        """
+        INSERT INTO audit_logs (action, policy_id, actor, summary, detail_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (action, policy_id, "admin", summary, json.dumps(detail or {}, ensure_ascii=False), utc_now()),
+    )
+
+
+def audit_log_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    try:
+        detail = json.loads(row["detail_json"] or "{}")
+    except json.JSONDecodeError:
+        detail = {}
+    return {
+        "id": row["id"],
+        "action": row["action"],
+        "policyId": row["policy_id"],
+        "actor": row["actor"],
+        "summary": row["summary"],
+        "detail": detail,
+        "createdAt": row["created_at"],
+    }
+
+
+def build_reports_overview(db: sqlite3.Connection) -> dict[str, Any]:
+    today = datetime.now(timezone.utc).date()
+    policies = db.execute("SELECT * FROM policies ORDER BY updated_at DESC").fetchall()
+    active_policies = [row for row in policies if row["sales_status"] not in {"renewed", "lost"}]
+    renewed_policies = [row for row in policies if row["sales_status"] == "renewed"]
+    followup_due = [
+        row for row in active_policies
+        if (next_follow_up := parse_iso_date(row["next_follow_up"])) and next_follow_up <= today
+    ]
+    due_30 = [
+        row for row in active_policies
+        if (end_date := parse_iso_date(row["end_date"])) and 0 <= (end_date - today).days <= 30
+    ]
+    overdue = [
+        row for row in active_policies
+        if (end_date := parse_iso_date(row["end_date"])) and end_date < today
+    ]
+
+    status_counts = [
+        {
+            "status": row["sales_status"],
+            "label": SALES_STATUS_LABELS.get(row["sales_status"], row["sales_status"]),
+            "count": row["total"],
+        }
+        for row in db.execute(
+            """
+            SELECT sales_status, COUNT(*) AS total
+            FROM policies
+            GROUP BY sales_status
+            ORDER BY total DESC, sales_status ASC
+            """
+        ).fetchall()
+    ]
+    agent_workload = [
+        {
+            "agent": row["agent"] or "ยังไม่ระบุผู้ดูแล",
+            "active": row["active_total"],
+            "premium": row["premium_total"] or 0,
+        }
+        for row in db.execute(
+            """
+            SELECT
+              COALESCE(NULLIF(assigned_agent, ''), 'ยังไม่ระบุผู้ดูแล') AS agent,
+              SUM(CASE WHEN sales_status NOT IN ('renewed', 'lost') THEN 1 ELSE 0 END) AS active_total,
+              SUM(CASE WHEN sales_status NOT IN ('renewed', 'lost') THEN premium_amount ELSE 0 END) AS premium_total
+            FROM policies
+            GROUP BY agent
+            ORDER BY active_total DESC, premium_total DESC
+            LIMIT 8
+            """
+        ).fetchall()
+    ]
+
+    document_missing_count = 0
+    for row in active_policies:
+        progress = document_progress(load_document_checklist(db, row["id"], row["insurance_category"]))
+        if progress["missing"]:
+            document_missing_count += 1
+
+    audit_rows = db.execute("SELECT * FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT 12").fetchall()
+    total = len(policies)
+    return {
+        "generatedAt": utc_now(),
+        "totals": {
+            "policies": total,
+            "active": len(active_policies),
+            "renewed": len(renewed_policies),
+            "overdue": len(overdue),
+            "due30": len(due_30),
+            "followupDue": len(followup_due),
+            "documentsMissing": document_missing_count,
+            "activePremium": sum(float(row["premium_amount"] or 0) for row in active_policies),
+            "renewalRate": round((len(renewed_policies) / total) * 100, 1) if total else 0,
+        },
+        "statusCounts": status_counts,
+        "agentWorkload": agent_workload,
+        "recentAudit": [audit_log_to_dict(row) for row in audit_rows],
+    }
 
 
 def build_admin_alert_message(db: sqlite3.Connection) -> str:
