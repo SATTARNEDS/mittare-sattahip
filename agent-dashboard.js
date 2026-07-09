@@ -32,6 +32,15 @@ const attachmentDialogTitle = document.querySelector("#attachment-dialog-title")
 const attachmentDialogViewer = document.querySelector("#attachment-dialog-viewer");
 const attachmentDialogMeta = document.querySelector("#attachment-dialog-meta");
 const attachmentDialogDownload = document.querySelector("#attachment-dialog-download");
+const careSelectedSummary = document.querySelector("#care-selected-summary");
+const documentChecklist = document.querySelector("#document-checklist");
+const documentProgressLabel = document.querySelector("#document-progress-label");
+const saveDocumentChecklistButton = document.querySelector("#save-document-checklist");
+const documentFeedback = document.querySelector("#document-feedback");
+const activityForm = document.querySelector("#activity-form");
+const activityTimeline = document.querySelector("#activity-timeline");
+const activityFeedback = document.querySelector("#activity-feedback");
+const saveActivityButton = document.querySelector("#save-activity");
 
 let policies = [];
 let selectedPolicyId = "";
@@ -84,7 +93,6 @@ const salesStatusLabels = {
   documents: "รอเอกสาร",
   payment: "นัดชำระ",
   renewed: "ต่ออายุแล้ว",
-  "claim-followup": "ติดตามหลังเคลม",
   lost: "ปิดงานไม่สำเร็จ"
 };
 
@@ -283,6 +291,15 @@ function formatCurrency(value) {
   }).format(amount);
 }
 
+function formatCompactCurrency(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return "0";
+  return new Intl.NumberFormat("th-TH", {
+    notation: "compact",
+    maximumFractionDigits: 1
+  }).format(amount);
+}
+
 function daysUntil(dateValue) {
   if (!dateValue) return Number.POSITIVE_INFINITY;
   const today = new Date();
@@ -315,12 +332,16 @@ function renderDashboard() {
     return days >= 0 && days <= 30;
   }).length;
   const followup = activePolicies.filter((policy) => daysUntil(policy.nextFollowUp) <= 0).length;
+  const incompleteDocuments = activePolicies.filter((policy) => (policy.documentProgress?.missing || 0) > 0).length;
+  const activePremium = activePolicies.reduce((total, policy) => total + Number(policy.premiumAmount || 0), 0);
   const urgentCount = overdue + due7 + followup;
 
   setText("#stat-overdue", overdue);
   setText("#stat-due7", due7);
   setText("#stat-due30", due30);
   setText("#stat-followup", followup);
+  setText("#stat-documents", incompleteDocuments);
+  setText("#stat-premium", formatCompactCurrency(activePremium));
   setText("#hero-due-count", urgentCount);
   setText("#hero-due-label", urgentCount ? "มีงานที่ควรติดตาม" : "ยังไม่มีงานด่วน");
 
@@ -328,6 +349,7 @@ function renderDashboard() {
   if (overdue) alerts.push(`มีกรมธรรม์เลยกำหนด ${overdue} รายการ ควรติดต่อก่อนรายการอื่น`);
   if (due7) alerts.push(`มีกรมธรรม์ครบกำหนดใน 7 วัน ${due7} รายการ`);
   if (followup) alerts.push(`มีนัดติดตามวันนี้หรือเลยกำหนด ${followup} รายการ`);
+  if (incompleteDocuments) alerts.push(`มีรายการเอกสารยังไม่ครบ ${incompleteDocuments} งาน`);
 
   const alertContainer = document.querySelector("#agent-alerts");
   alertContainer.innerHTML = alerts.length
@@ -359,6 +381,8 @@ function renderPolicyTable() {
     const dueDays = daysUntil(policy.endDate);
     const urgencyClass = dueDays < 0 ? "is-overdue" : dueDays <= 7 ? "is-soon" : "";
     const attachmentCount = policy.attachments?.length || 0;
+    const progress = policy.documentProgress || { completed: 0, total: 0, missing: 0 };
+    const progressClass = progress.missing > 0 ? "is-missing" : "is-complete";
 
     return `
       <tr class="${policy.id === selectedPolicyId ? "is-selected" : ""}">
@@ -371,6 +395,7 @@ function renderPolicyTable() {
           <strong>${escapeHtml(policy.insuranceCategory)}</strong>
           <span>${escapeHtml(policy.productName || "ไม่ระบุแผน")}</span>
           <small>${escapeHtml(policy.policyNumber || "ยังไม่มีเลขกรมธรรม์")} · ${attachmentCount} ไฟล์</small>
+          <small class="document-progress ${progressClass}">เอกสาร ${progress.completed}/${progress.total}</small>
           <small>${escapeHtml(policy.assignedAgent || "ยังไม่ระบุผู้ดูแล")}</small>
         </td>
         <td>
@@ -388,6 +413,7 @@ function renderPolicyTable() {
         <td>
           <div class="agent-table-actions">
             <button type="button" data-action="select" data-id="${policy.id}">ข้อความ</button>
+            <button type="button" data-action="care" data-id="${policy.id}">งานลูกค้า</button>
             <button type="button" data-action="line" data-id="${policy.id}">แจ้งผู้ดูแล</button>
             <button type="button" data-action="edit" data-id="${policy.id}">แก้ไข</button>
             <button type="button" data-action="delete" data-id="${policy.id}">ลบ</button>
@@ -447,6 +473,86 @@ function renderCurrentAttachments(policy) {
       `).join("")}
     `
     : "";
+}
+
+function renderCarePanel() {
+  const policy = getSelectedPolicy();
+  if (!policy) {
+    if (careSelectedSummary) {
+      careSelectedSummary.innerHTML = `
+        <strong>ยังไม่ได้เลือกกรมธรรม์</strong>
+        <span>กด “ข้อความ” หรือ “งานลูกค้า” จากตารางเพื่อโหลดงานดูแลลูกค้า</span>
+      `;
+    }
+    if (documentChecklist) {
+      documentChecklist.innerHTML = `
+        <div class="plan-empty plan-empty--compact">
+          <strong>ยังไม่มี Checklist ให้แก้ไข</strong>
+          <span>เลือกกรมธรรม์ก่อนเพื่อดูรายการเอกสารที่ต้องติดตาม</span>
+        </div>
+      `;
+    }
+    if (activityTimeline) activityTimeline.innerHTML = "";
+    if (documentProgressLabel) documentProgressLabel.textContent = "0/0";
+    if (saveDocumentChecklistButton) saveDocumentChecklistButton.disabled = true;
+    if (saveActivityButton) saveActivityButton.disabled = true;
+    return;
+  }
+
+  const progress = policy.documentProgress || { completed: 0, total: 0, missing: 0 };
+  if (careSelectedSummary) {
+    const statusLabel = salesStatusLabels[policy.salesStatus] || policy.salesStatus;
+    careSelectedSummary.innerHTML = `
+      <strong>${escapeHtml(policy.customerName)} · ${escapeHtml(policy.policyNumber || policy.publicRef)}</strong>
+      <span>${escapeHtml(policy.insuranceCategory)}${policy.productName ? ` / ${escapeHtml(policy.productName)}` : ""} · ${escapeHtml(statusLabel)} · เอกสารครบ ${progress.completed}/${progress.total}</span>
+    `;
+  }
+  if (documentProgressLabel) documentProgressLabel.textContent = `${progress.completed}/${progress.total}`;
+  if (saveDocumentChecklistButton) saveDocumentChecklistButton.disabled = false;
+  if (saveActivityButton) saveActivityButton.disabled = false;
+
+  renderDocumentChecklist(policy);
+  renderActivityTimeline(policy);
+}
+
+function renderDocumentChecklist(policy) {
+  const items = policy.documentChecklist || [];
+  if (!documentChecklist) return;
+  documentChecklist.innerHTML = items.length
+    ? items.map((item, index) => `
+      <label class="document-checklist__item">
+        <input type="checkbox" data-checklist-index="${index}" ${item.completed ? "checked" : ""}>
+        <span>${escapeHtml(item.label)}</span>
+      </label>
+    `).join("")
+    : `
+      <div class="plan-empty plan-empty--compact">
+        <strong>ยังไม่มีรายการเอกสาร</strong>
+        <span>ระบบจะสร้างรายการเริ่มต้นตามประเภทประกันเมื่อโหลดข้อมูล</span>
+      </div>
+    `;
+}
+
+function renderActivityTimeline(policy) {
+  const activities = policy.activityTimeline || [];
+  if (!activityTimeline) return;
+  activityTimeline.innerHTML = activities.length
+    ? activities.map((activity) => `
+      <article class="activity-item">
+        <div>
+          <strong>${escapeHtml(activity.activityLabel)}</strong>
+          <span>${formatDate(activity.activityDate)}${activity.nextFollowUp ? ` · นัดถัดไป ${formatDate(activity.nextFollowUp)}` : ""}</span>
+        </div>
+        <p>${escapeHtml(activity.note)}</p>
+        <button type="button" data-delete-activity="${activity.id}">ลบบันทึก</button>
+      </article>
+    `).join("")
+    : `
+      <div class="plan-empty plan-empty--compact">
+        <strong>ยังไม่มี Timeline</strong>
+        <span>เพิ่มบันทึกการโทร ส่ง LINE หรือติดตามเอกสารเพื่อให้ทีมดูงานต่อได้</span>
+      </div>
+    `;
 }
 
 function renderAttachmentViewer(file) {
@@ -569,12 +675,14 @@ function resetForm() {
   currentAttachments.hidden = true;
   currentAttachments.innerHTML = "";
   formFeedback.textContent = "พร้อมบันทึกข้อมูลลง SQLite";
+  renderCarePanel();
 }
 
 function editPolicy(policyId) {
   const policy = policies.find((item) => String(item.id) === String(policyId));
   if (!policy) return;
 
+  selectedPolicyId = String(policyId);
   document.querySelector("#policy-id").value = policy.id;
   document.querySelector("#customer-name").value = policy.customerName || "";
   document.querySelector("#customer-phone").value = policy.customerPhone || "";
@@ -594,6 +702,8 @@ function editPolicy(policyId) {
   document.querySelector("#form-title").textContent = "แก้ไขข้อมูลกรมธรรม์";
   document.querySelector("#form-mode-number").textContent = "02";
   renderCurrentAttachments(policy);
+  renderCarePanel();
+  renderPolicyTable();
   document.querySelector("#policy-form").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -601,6 +711,12 @@ function selectPolicy(policyId) {
   selectedPolicyId = String(policyId);
   renderMessage();
   renderPolicyTable();
+  renderCarePanel();
+}
+
+function openCarePolicy(policyId) {
+  selectPolicy(policyId);
+  document.querySelector("#customer-care")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function deletePolicy(policyId) {
@@ -632,11 +748,10 @@ function renderMessage() {
   const messages = {
     renewal: `แจ้งเตือนผู้ดูแล\n\nลูกค้า: ${policy.customerName}\nโทร: ${policy.customerPhone || "-"}\nกรมธรรม์: ${policy.policyNumber || policy.publicRef}\nประเภท: ${policy.insuranceCategory}${policy.productName ? ` (${policy.productName})` : ""}\nครบกำหนด: ${formatDate(policy.endDate)} (${dueLabel})\nผู้ดูแล: ${agentName}\n\nงานที่แนะนำ: ตรวจแผนต่ออายุและเปรียบเทียบความคุ้มครองให้ลูกค้า`,
     document: `แจ้งเตือนผู้ดูแล\n\nลูกค้า: ${policy.customerName}\nโทร: ${policy.customerPhone || "-"}\nกรมธรรม์: ${policy.policyNumber || policy.publicRef}\nประเภท: ${policy.insuranceCategory}${policy.productName ? ` (${policy.productName})` : ""}\nสถานะ: ขอเอกสารเพิ่มเติม\nผู้ดูแล: ${agentName}\n\nหมายเหตุ: ${policy.customerNotes || "ยังไม่มีรายละเอียดเอกสารที่ต้องขอ"}`,
-    payment: `แจ้งเตือนผู้ดูแล\n\nลูกค้า: ${policy.customerName}\nโทร: ${policy.customerPhone || "-"}\nกรมธรรม์: ${policy.policyNumber || policy.publicRef}\nเบี้ยที่บันทึกไว้: ${formatCurrency(policy.premiumAmount)}\nครบกำหนด: ${formatDate(policy.endDate)}\nผู้ดูแล: ${agentName}\n\nงานที่แนะนำ: ติดตามนัดชำระเบี้ยและหลักฐานการชำระ`,
-    claim: `แจ้งเตือนผู้ดูแล\n\nลูกค้า: ${policy.customerName}\nโทร: ${policy.customerPhone || "-"}\nกรมธรรม์: ${policy.policyNumber || policy.publicRef}\nประเภท: ${policy.insuranceCategory}${policy.productName ? ` (${policy.productName})` : ""}\nผู้ดูแล: ${agentName}\n\nงานที่แนะนำ: ติดตามสถานะเคลม เอกสารเพิ่มเติม และขั้นตอนถัดไป`
+    payment: `แจ้งเตือนผู้ดูแล\n\nลูกค้า: ${policy.customerName}\nโทร: ${policy.customerPhone || "-"}\nกรมธรรม์: ${policy.policyNumber || policy.publicRef}\nเบี้ยที่บันทึกไว้: ${formatCurrency(policy.premiumAmount)}\nครบกำหนด: ${formatDate(policy.endDate)}\nผู้ดูแล: ${agentName}\n\nงานที่แนะนำ: ติดตามนัดชำระเบี้ยและหลักฐานการชำระ`
   };
 
-  generatedMessage.value = messages[tone];
+  generatedMessage.value = messages[tone] || messages.renewal;
   openLineShare.href = `https://line.me/R/msg/text/?${encodeURIComponent(generatedMessage.value)}`;
   openLineShare.removeAttribute("aria-disabled");
   pushLineMessageButton.disabled = !linePushConfigured || !adminLineRecipientConfigured;
@@ -651,6 +766,7 @@ function renderAll() {
   renderDashboard();
   renderPolicyTable();
   renderMessage();
+  renderCarePanel();
 }
 
 async function handleFormSubmit(event) {
@@ -685,6 +801,73 @@ async function removeAttachment(attachmentId) {
   await refreshPolicies();
   const policyId = document.querySelector("#policy-id").value;
   if (policyId) renderCurrentAttachments(policies.find((item) => String(item.id) === String(policyId)));
+}
+
+async function saveDocumentChecklist() {
+  const policy = getSelectedPolicy();
+  if (!policy || !documentChecklist) return;
+  const items = Array.from(documentChecklist.querySelectorAll("[data-checklist-index]")).map((checkbox) => {
+    const sourceItem = policy.documentChecklist[Number(checkbox.dataset.checklistIndex)];
+    return {
+      label: sourceItem?.label || "",
+      completed: checkbox.checked
+    };
+  });
+  saveDocumentChecklistButton.disabled = true;
+  documentFeedback.textContent = "กำลังบันทึก Checklist...";
+  try {
+    const updatedPolicy = await apiFetch(`/api/policies/${policy.id}/document-checklist`, {
+      method: "PUT",
+      body: JSON.stringify({ items })
+    });
+    policies = policies.map((item) => String(item.id) === String(updatedPolicy.id) ? updatedPolicy : item);
+    documentFeedback.textContent = "บันทึก Checklist เอกสารเรียบร้อยแล้ว";
+    renderAll();
+  } catch (error) {
+    documentFeedback.textContent = error.message;
+  } finally {
+    saveDocumentChecklistButton.disabled = false;
+  }
+}
+
+async function handleActivitySubmit(event) {
+  event.preventDefault();
+  const policy = getSelectedPolicy();
+  if (!policy) return;
+  const formData = new FormData(activityForm);
+  saveActivityButton.disabled = true;
+  activityFeedback.textContent = "กำลังเพิ่ม Timeline...";
+  try {
+    await apiFetch(`/api/policies/${policy.id}/activities`, {
+      method: "POST",
+      body: JSON.stringify({
+        activityType: formData.get("activityType"),
+        activityDate: formData.get("activityDate"),
+        nextFollowUp: formData.get("nextFollowUp"),
+        note: formData.get("note")
+      })
+    });
+    activityForm.reset();
+    document.querySelector("#activity-date").valueAsDate = new Date();
+    activityFeedback.textContent = "เพิ่ม Timeline การติดต่อลูกค้าแล้ว";
+    await refreshPolicies();
+  } catch (error) {
+    activityFeedback.textContent = error.message;
+  } finally {
+    saveActivityButton.disabled = false;
+  }
+}
+
+async function deleteActivity(activityId) {
+  const confirmed = window.confirm("ต้องการลบบันทึก Timeline นี้ใช่ไหม");
+  if (!confirmed) return;
+  try {
+    await apiFetch(`/api/policy-activities/${activityId}`, { method: "DELETE" });
+    activityFeedback.textContent = "ลบบันทึก Timeline แล้ว";
+    await refreshPolicies();
+  } catch (error) {
+    activityFeedback.textContent = error.message;
+  }
 }
 
 async function addSampleData() {
@@ -831,6 +1014,7 @@ policyTableBody?.addEventListener("click", (event) => {
   if (!button) return;
   const policyId = button.dataset.id;
   if (button.dataset.action === "select") selectPolicy(policyId);
+  if (button.dataset.action === "care") openCarePolicy(policyId);
   if (button.dataset.action === "line") {
     selectPolicy(policyId);
     pushSelectedLineMessage();
@@ -870,6 +1054,13 @@ productMediaPreview?.addEventListener("click", (event) => {
   editProductMedia(button.dataset.editMediaPlan, button.dataset.mediaType);
 });
 
+saveDocumentChecklistButton?.addEventListener("click", saveDocumentChecklist);
+activityForm?.addEventListener("submit", handleActivitySubmit);
+activityTimeline?.addEventListener("click", (event) => {
+  const deleteButton = event.target.closest("button[data-delete-activity]");
+  if (!deleteButton) return;
+  deleteActivity(deleteButton.dataset.deleteActivity);
+});
 sendAdminAlertButton?.addEventListener("click", sendAdminAlertSummary);
 pushLineMessageButton?.addEventListener("click", pushSelectedLineMessage);
 
@@ -891,6 +1082,7 @@ document.querySelector("#clear-all-data")?.addEventListener("click", clearAllDat
 
 initializeProductMediaPlanOptions();
 renderPolicyProductOptions();
+if (document.querySelector("#activity-date")) document.querySelector("#activity-date").valueAsDate = new Date();
 initializeAgentDashboard();
 attachmentDialog?.addEventListener("click", (event) => {
   if (event.target === attachmentDialog) attachmentDialog.close();

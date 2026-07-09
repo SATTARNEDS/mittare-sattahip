@@ -34,7 +34,6 @@ const salesStatusLabels = {
   documents: "รอเอกสารเพิ่มเติม",
   payment: "รอชำระเบี้ย",
   renewed: "ต่ออายุเรียบร้อย",
-  "claim-followup": "อยู่ระหว่างติดตามงานเคลม",
   lost: "ปิดงาน"
 };
 

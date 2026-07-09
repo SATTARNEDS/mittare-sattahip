@@ -61,8 +61,26 @@ SALES_STATUS_LABELS = {
     "documents": "รอเอกสาร",
     "payment": "นัดชำระ",
     "renewed": "ต่ออายุแล้ว",
-    "claim-followup": "ติดตามหลังเคลม",
     "lost": "ปิดงานไม่สำเร็จ",
+}
+
+DEFAULT_DOCUMENT_CHECKLISTS = {
+    "รถยนต์": ["สำเนาบัตรประชาชน", "สำเนาทะเบียนรถ", "รูปถ่ายรถ", "ใบเสนอราคา", "หลักฐานชำระเบี้ย"],
+    "พ.ร.บ.": ["สำเนาทะเบียนรถ", "เลขตัวถัง/เลขทะเบียน", "หลักฐานชำระเบี้ย"],
+    "บ้านและทรัพย์สิน": ["สำเนาบัตรประชาชน", "ที่อยู่สถานที่เอาประกัน", "รูปถ่ายสถานที่", "รายละเอียดทรัพย์สิน", "หลักฐานชำระเบี้ย"],
+    "อุบัติเหตุ/สุขภาพ": ["สำเนาบัตรประชาชน", "ข้อมูลผู้เอาประกัน", "ผู้รับผลประโยชน์", "หลักฐานชำระเบี้ย"],
+    "ธุรกิจ": ["หนังสือรับรองบริษัท/ร้านค้า", "ที่ตั้งกิจการ", "รายการทรัพย์สิน", "รูปถ่ายสถานที่", "หลักฐานชำระเบี้ย"],
+    "เฉพาะทาง": ["ข้อมูลทรัพย์สิน/อุปกรณ์", "รูปถ่ายประกอบ", "รายละเอียดการใช้งาน", "หลักฐานชำระเบี้ย"],
+    "default": ["สำเนาบัตรประชาชน", "ข้อมูลกรมธรรม์เดิม", "ใบเสนอราคา", "หลักฐานชำระเบี้ย"],
+}
+
+ACTIVITY_TYPE_LABELS = {
+    "call": "โทรหาลูกค้า",
+    "line": "ส่ง LINE",
+    "document": "ติดตามเอกสาร",
+    "payment": "ติดตามชำระเบี้ย",
+    "renewal": "งานต่ออายุ",
+    "note": "บันทึกทั่วไป",
 }
 
 
@@ -264,6 +282,91 @@ def create_app() -> Flask:
             db.execute("DELETE FROM attachments WHERE id = ?", (attachment_id,))
         delete_upload_file(attachment["stored_filename"])
         return jsonify({"ok": True})
+
+    @app.get("/api/policies/<int:policy_id>/activities")
+    @require_admin
+    def list_policy_activities(policy_id: int):
+        with get_db() as db:
+            policy = db.execute("SELECT id FROM policies WHERE id = ?", (policy_id,)).fetchone()
+            if not policy:
+                return jsonify({"error": "ไม่พบกรมธรรม์"}), 404
+            rows = db.execute(
+                "SELECT * FROM policy_activities WHERE policy_id = ? ORDER BY activity_date DESC, created_at DESC",
+                (policy_id,),
+            ).fetchall()
+        return jsonify([activity_to_dict(row) for row in rows])
+
+    @app.post("/api/policies/<int:policy_id>/activities")
+    @require_admin
+    def create_policy_activity(policy_id: int):
+        data = request.get_json(silent=True) or {}
+        note = str(data.get("note", "")).strip()
+        if not note:
+            raise BadRequest("กรุณากรอกบันทึกการติดต่อลูกค้า")
+        activity_type = str(data.get("activityType", "note")).strip()
+        if activity_type not in ACTIVITY_TYPE_LABELS:
+            activity_type = "note"
+        activity_date = str(data.get("activityDate", "")).strip() or datetime.now(timezone.utc).date().isoformat()
+        next_follow_up = str(data.get("nextFollowUp", "")).strip()
+        now = utc_now()
+        with get_db() as db:
+            policy = db.execute("SELECT id FROM policies WHERE id = ?", (policy_id,)).fetchone()
+            if not policy:
+                return jsonify({"error": "ไม่พบกรมธรรม์"}), 404
+            cursor = db.execute(
+                """
+                INSERT INTO policy_activities (
+                  policy_id, activity_type, activity_date, note, next_follow_up, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (policy_id, activity_type, activity_date, note, next_follow_up, now),
+            )
+            if next_follow_up:
+                db.execute(
+                    "UPDATE policies SET next_follow_up = ?, updated_at = ? WHERE id = ?",
+                    (next_follow_up, now, policy_id),
+                )
+            row = db.execute("SELECT * FROM policy_activities WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return jsonify(activity_to_dict(row)), 201
+
+    @app.delete("/api/policy-activities/<int:activity_id>")
+    @require_admin
+    def delete_policy_activity(activity_id: int):
+        with get_db() as db:
+            activity = db.execute("SELECT id FROM policy_activities WHERE id = ?", (activity_id,)).fetchone()
+            if not activity:
+                return jsonify({"error": "ไม่พบบันทึกนี้"}), 404
+            db.execute("DELETE FROM policy_activities WHERE id = ?", (activity_id,))
+        return jsonify({"ok": True})
+
+    @app.put("/api/policies/<int:policy_id>/document-checklist")
+    @require_admin
+    def update_document_checklist(policy_id: int):
+        data = request.get_json(silent=True) or {}
+        items = sanitize_checklist_items(data.get("items", []))
+        if not items:
+            raise BadRequest("กรุณาเพิ่มรายการเอกสารอย่างน้อย 1 รายการ")
+        with get_db() as db:
+            policy = db.execute("SELECT id FROM policies WHERE id = ?", (policy_id,)).fetchone()
+            if not policy:
+                return jsonify({"error": "ไม่พบกรมธรรม์"}), 404
+            db.execute("DELETE FROM policy_document_items WHERE policy_id = ?", (policy_id,))
+            now = utc_now()
+            for index, item in enumerate(items, start=1):
+                db.execute(
+                    """
+                    INSERT INTO policy_document_items (
+                      policy_id, label, is_completed, sort_order, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (policy_id, item["label"], int(item["completed"]), index, now),
+                )
+            db.execute("UPDATE policies SET updated_at = ? WHERE id = ?", (now, policy_id))
+            row = db.execute("SELECT * FROM policies WHERE id = ?", (policy_id,)).fetchone()
+            payload = policy_to_dict(db, row, include_private=True)
+        return jsonify(payload)
 
     @app.post("/api/line/webhook")
     def line_webhook():
@@ -656,6 +759,27 @@ def initialize_database() -> None:
               created_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS policy_activities (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              policy_id INTEGER NOT NULL,
+              activity_type TEXT NOT NULL DEFAULT 'note',
+              activity_date TEXT NOT NULL,
+              note TEXT NOT NULL,
+              next_follow_up TEXT DEFAULT '',
+              created_at TEXT NOT NULL,
+              FOREIGN KEY (policy_id) REFERENCES policies(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS policy_document_items (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              policy_id INTEGER NOT NULL,
+              label TEXT NOT NULL,
+              is_completed INTEGER NOT NULL DEFAULT 0,
+              sort_order INTEGER DEFAULT 0,
+              updated_at TEXT NOT NULL,
+              FOREIGN KEY (policy_id) REFERENCES policies(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_policies_end_date ON policies(end_date);
             CREATE INDEX IF NOT EXISTS idx_policies_phone ON policies(customer_phone);
             CREATE INDEX IF NOT EXISTS idx_attachments_policy ON attachments(policy_id);
@@ -663,11 +787,14 @@ def initialize_database() -> None:
             CREATE INDEX IF NOT EXISTS idx_line_message_logs_policy ON line_message_logs(policy_id);
             CREATE INDEX IF NOT EXISTS idx_line_webhook_events_user ON line_webhook_events(line_user_id);
             CREATE INDEX IF NOT EXISTS idx_line_admin_message_logs_created ON line_admin_message_logs(created_at);
+            CREATE INDEX IF NOT EXISTS idx_policy_activities_policy ON policy_activities(policy_id);
+            CREATE INDEX IF NOT EXISTS idx_policy_document_items_policy ON policy_document_items(policy_id);
             """
         )
         ensure_column(db, "policies", "line_user_id", "TEXT DEFAULT ''")
         ensure_column(db, "product_media", "public_url", "TEXT DEFAULT ''")
         ensure_column(db, "product_media", "source", "TEXT NOT NULL DEFAULT 'upload'")
+        db.execute("UPDATE policies SET sales_status = 'waiting' WHERE sales_status = 'claim-followup'")
     migrate_product_media_json_to_database()
     seed_default_product_media()
 
@@ -1191,7 +1318,76 @@ def line_contact_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
+def activity_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    activity_type = row["activity_type"]
+    return {
+        "id": row["id"],
+        "activityType": activity_type,
+        "activityLabel": ACTIVITY_TYPE_LABELS.get(activity_type, "บันทึกทั่วไป"),
+        "activityDate": row["activity_date"],
+        "note": row["note"],
+        "nextFollowUp": row["next_follow_up"],
+        "createdAt": row["created_at"],
+    }
+
+
+def sanitize_checklist_items(items: Any) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+    cleaned_items = []
+    seen_labels = set()
+    for item in items[:40]:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("label", "")).strip()[:120]
+        if not label or label in seen_labels:
+            continue
+        seen_labels.add(label)
+        cleaned_items.append({
+            "label": label,
+            "completed": bool(item.get("completed")),
+        })
+    return cleaned_items
+
+
+def default_document_checklist(insurance_category: str) -> list[dict[str, Any]]:
+    labels = DEFAULT_DOCUMENT_CHECKLISTS.get(insurance_category) or DEFAULT_DOCUMENT_CHECKLISTS["default"]
+    return [
+        {"id": None, "label": label, "completed": False, "updatedAt": ""}
+        for label in labels
+    ]
+
+
+def load_document_checklist(db: sqlite3.Connection, policy_id: int, insurance_category: str) -> list[dict[str, Any]]:
+    rows = db.execute(
+        """
+        SELECT * FROM policy_document_items
+        WHERE policy_id = ?
+        ORDER BY sort_order ASC, id ASC
+        """,
+        (policy_id,),
+    ).fetchall()
+    if not rows:
+        return default_document_checklist(insurance_category)
+    return [
+        {
+            "id": row["id"],
+            "label": row["label"],
+            "completed": bool(row["is_completed"]),
+            "updatedAt": row["updated_at"],
+        }
+        for row in rows
+    ]
+
+
+def document_progress(items: list[dict[str, Any]]) -> dict[str, int]:
+    total = len(items)
+    completed = sum(1 for item in items if item.get("completed"))
+    return {"completed": completed, "total": total, "missing": max(total - completed, 0)}
+
+
 def policy_to_dict(db: sqlite3.Connection, row: sqlite3.Row, include_private: bool) -> dict[str, Any]:
+    checklist = load_document_checklist(db, row["id"], row["insurance_category"]) if include_private else []
     policy = {
         "id": row["id"] if include_private else None,
         "publicRef": row["public_ref"],
@@ -1214,6 +1410,20 @@ def policy_to_dict(db: sqlite3.Connection, row: sqlite3.Row, include_private: bo
         "updatedAt": row["updated_at"],
     }
     if include_private:
+        policy["documentChecklist"] = checklist
+        policy["documentProgress"] = document_progress(checklist)
+        policy["activityTimeline"] = [
+            activity_to_dict(activity)
+            for activity in db.execute(
+                """
+                SELECT * FROM policy_activities
+                WHERE policy_id = ?
+                ORDER BY activity_date DESC, created_at DESC
+                LIMIT 8
+                """,
+                (row["id"],),
+            ).fetchall()
+        ]
         policy["attachments"] = [
             {
                 "id": attachment["id"],
@@ -1230,6 +1440,9 @@ def policy_to_dict(db: sqlite3.Connection, row: sqlite3.Row, include_private: bo
         ]
     else:
         policy["attachments"] = []
+        policy["documentChecklist"] = []
+        policy["documentProgress"] = {"completed": 0, "total": 0, "missing": 0}
+        policy["activityTimeline"] = []
     return policy
 
 
@@ -1404,10 +1617,10 @@ def seed_line_test_rows(db: sqlite3.Connection, line_user_id: str) -> None:
         },
         {
             "public_ref": "MT4-LINE-TEST-005",
-            "customer_name": "ทดสอบ ติดตามเคลม",
+            "customer_name": "ทดสอบ รอต่ออายุ",
             "customer_phone": "081-000-1005",
             "line_name": "bom05183",
-            "assigned_agent": "ทีมเคลม มิตรแท้สัตหีบ",
+            "assigned_agent": "ทีม Mittare Sattahip",
             "insurance_category": "รถยนต์",
             "product_name": "รถยนต์ประเภท 2+",
             "policy_number": "MT4-LINE-TEST-005",
@@ -1415,9 +1628,9 @@ def seed_line_test_rows(db: sqlite3.Connection, line_user_id: str) -> None:
             "start_date": "2026-02-01",
             "end_date": "2027-02-01",
             "premium_amount": 8900,
-            "sales_status": "claim-followup",
+            "sales_status": "waiting",
             "next_follow_up": "2026-06-26",
-            "customer_notes": "เคสทดสอบติดตามเอกสารเคลมและสถานะหลังเกิดเหตุ",
+            "customer_notes": "เคสทดสอบลูกค้ารอตัดสินใจหลังได้รับใบเสนอราคา",
         },
         {
             "public_ref": "MT4-LINE-TEST-006",

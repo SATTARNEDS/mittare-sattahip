@@ -39,6 +39,7 @@
         <span class="agent-private-nav" id="agent-private-nav" hidden>
           <a href="#policy-form">เพิ่มกรมธรรม์</a>
           <a href="#policy-list">รายการติดตาม</a>
+          <a href="#customer-care">งานลูกค้า</a>
           <a href="#media-manager">คลังรูปเว็บ</a>
           <a class="button button--small button--dark" href="#agent-tools">สำรองข้อมูล</a>
           <button class="text-button" id="logout-button" type="button">ออกจากระบบ</button>
@@ -118,6 +119,16 @@
             <strong id="stat-followup">0</strong>
             <small>งานภายในสำหรับตัวแทน</small>
           </article>
+          <article class="agent-stat-card">
+            <span>เอกสารยังไม่ครบ</span>
+            <strong id="stat-documents">0</strong>
+            <small>ควรติดตามก่อนปิดงาน</small>
+          </article>
+          <article class="agent-stat-card agent-stat-card--premium">
+            <span>เบี้ย active รวม</span>
+            <strong id="stat-premium">0</strong>
+            <small>ไม่รวมปิดงานสำเร็จ/ไม่สำเร็จ</small>
+          </article>
         </div>
 
         <div class="agent-alerts" id="agent-alerts" role="status" aria-live="polite"></div>
@@ -162,7 +173,6 @@
               <option value="documents">รอเอกสาร</option>
               <option value="payment">นัดชำระ</option>
               <option value="renewed">ต่ออายุแล้ว</option>
-              <option value="claim-followup">ติดตามหลังเคลม</option>
               <option value="lost">ปิดงานไม่สำเร็จ</option>
             </select>
           </div>
@@ -281,7 +291,6 @@
                 <option value="documents">รอเอกสาร</option>
                 <option value="payment">นัดชำระ</option>
                 <option value="renewed">ต่ออายุแล้ว</option>
-                <option value="claim-followup">ติดตามหลังเคลม</option>
                 <option value="lost">ปิดงานไม่สำเร็จ</option>
               </select>
             </div>
@@ -321,7 +330,6 @@
               <option value="renewal">เตือนต่ออายุ</option>
               <option value="document">ขอเอกสารเพิ่มเติม</option>
               <option value="payment">นัดชำระเบี้ย</option>
-              <option value="claim">ติดตามหลังเคลม</option>
             </select>
           </div>
           <textarea class="agent-message-box" id="generated-message" rows="11" readonly placeholder="เลือกกรมธรรม์จากรายการเพื่อสร้างข้อความ"></textarea>
@@ -332,6 +340,77 @@
           </div>
           <p class="agent-note" id="line-push-feedback" role="status" aria-live="polite">LINE Push ต้องตั้งค่า LINE_CHANNEL_ACCESS_TOKEN และ ADMIN_LINE_USER_ID บนเซิร์ฟเวอร์</p>
         </aside>
+      </div>
+    </section>
+
+    <section class="agent-care-section section" id="customer-care" aria-labelledby="customer-care-title">
+      <div class="container">
+        <div class="section-heading agent-heading">
+          <div>
+            <p class="eyebrow eyebrow--dark"><span></span> Customer Care</p>
+            <h2 id="customer-care-title">เอกสารและ Timeline ลูกค้า</h2>
+          </div>
+          <p>เลือกกรมธรรม์จากรายการด้านบนเพื่อจัดการเอกสารที่ต้องใช้และบันทึกการติดต่อลูกค้า</p>
+        </div>
+
+        <div class="agent-care-summary" id="care-selected-summary" aria-live="polite">
+          <strong>ยังไม่ได้เลือกกรมธรรม์</strong>
+          <span>กด “ข้อความ” หรือ “แก้ไข” จากตารางเพื่อโหลดงานดูแลลูกค้า</span>
+        </div>
+
+        <div class="agent-care-grid">
+          <section class="agent-care-panel" aria-labelledby="document-checklist-title">
+            <div class="agent-care-panel__header">
+              <div>
+                <span>Document Checklist</span>
+                <h3 id="document-checklist-title">Checklist เอกสาร</h3>
+              </div>
+              <strong id="document-progress-label">0/0</strong>
+            </div>
+            <div class="document-checklist" id="document-checklist" aria-live="polite"></div>
+            <button class="button button--primary" id="save-document-checklist" type="button" disabled>บันทึก Checklist</button>
+            <p class="agent-note" id="document-feedback" role="status" aria-live="polite">เลือกกรมธรรม์ก่อนแก้ไขรายการเอกสาร</p>
+          </section>
+
+          <section class="agent-care-panel" aria-labelledby="activity-title">
+            <div class="agent-care-panel__header">
+              <div>
+                <span>Customer Timeline</span>
+                <h3 id="activity-title">Timeline การติดต่อลูกค้า</h3>
+              </div>
+            </div>
+            <form class="activity-form" id="activity-form">
+              <div class="form-grid form-grid--thirds">
+                <div class="form-row">
+                  <label for="activity-type">ประเภทบันทึก</label>
+                  <select id="activity-type" name="activityType">
+                    <option value="call">โทรหาลูกค้า</option>
+                    <option value="line">ส่ง LINE</option>
+                    <option value="document">ติดตามเอกสาร</option>
+                    <option value="payment">ติดตามชำระเบี้ย</option>
+                    <option value="renewal">งานต่ออายุ</option>
+                    <option value="note">บันทึกทั่วไป</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label for="activity-date">วันที่ติดต่อ</label>
+                  <input id="activity-date" name="activityDate" type="date">
+                </div>
+                <div class="form-row">
+                  <label for="activity-next-follow-up">นัดครั้งถัดไป</label>
+                  <input id="activity-next-follow-up" name="nextFollowUp" type="date">
+                </div>
+              </div>
+              <div class="form-row">
+                <label for="activity-note">รายละเอียด</label>
+                <textarea id="activity-note" name="note" rows="4" placeholder="เช่น โทรแล้ว ลูกค้าขอใบเสนอราคาใหม่ หรือรอสลิปชำระเบี้ย"></textarea>
+              </div>
+              <button class="button button--dark" id="save-activity" type="submit" disabled>เพิ่ม Timeline</button>
+              <p class="agent-note" id="activity-feedback" role="status" aria-live="polite">บันทึกนี้ใช้เฉพาะหลังบ้าน ไม่แสดงให้ลูกค้าเห็น</p>
+            </form>
+            <div class="activity-timeline" id="activity-timeline" aria-live="polite"></div>
+          </section>
+        </div>
       </div>
     </section>
 
