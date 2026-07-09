@@ -10,6 +10,8 @@ const openLineShare = document.querySelector("#open-line-share");
 const currentAttachments = document.querySelector("#current-attachments");
 const formFeedback = document.querySelector("#form-feedback");
 const backupFeedback = document.querySelector("#backup-feedback");
+const trashList = document.querySelector("#trash-list");
+const downloadFullBackupButton = document.querySelector("#download-full-backup");
 const mainContent = document.querySelector("#main-content");
 const authSection = document.querySelector("#agent-auth");
 const loginForm = document.querySelector("#agent-login-form");
@@ -47,11 +49,13 @@ const auditLogList = document.querySelector("#audit-log-list");
 const reportFeedback = document.querySelector("#report-feedback");
 
 let policies = [];
+let deletedPolicies = [];
 let selectedPolicyId = "";
 let productMedia = {};
 let reportOverview = null;
 let linePushConfigured = false;
 let adminLineRecipientConfigured = false;
+let adminUser = null;
 
 function setAgentLoading(isLoading, message = "กำลังเตรียมข้อมูลหลังบ้าน") {
   if (!agentLoading) return;
@@ -206,6 +210,7 @@ async function initializeAgentDashboard() {
     setAgentLoading(true, "กำลังตรวจสอบสิทธิ์เข้าใช้งาน");
     const session = await apiFetch("/api/session");
     linePushConfigured = Boolean(session.linePushConfigured);
+    adminUser = session.adminUser || null;
     setAuthenticated(session.authenticated);
     if (session.authenticated) await Promise.all([refreshSettings(), refreshPolicies(), refreshReports(), refreshProductMedia()]);
   } catch (error) {
@@ -268,6 +273,11 @@ async function refreshPolicies() {
 async function refreshPoliciesAndReports() {
   await refreshPolicies();
   await refreshReports();
+}
+
+async function refreshDeletedPolicies() {
+  deletedPolicies = await apiFetch("/api/policies/trash");
+  renderTrashList();
 }
 
 async function refreshProductMedia() {
@@ -430,6 +440,30 @@ function renderReports() {
       `).join("")
       : renderReportEmpty("ยังไม่มีประวัติการแก้ไขสำคัญ");
   }
+}
+
+function renderTrashList() {
+  if (!trashList) return;
+  trashList.innerHTML = deletedPolicies.length
+    ? deletedPolicies.map((policy) => `
+      <article class="trash-item">
+        <div>
+          <strong>${escapeHtml(policy.customerName)} · ${escapeHtml(policy.policyNumber || policy.publicRef)}</strong>
+          <span>${escapeHtml(policy.insuranceCategory)}${policy.productName ? ` / ${escapeHtml(policy.productName)}` : ""}</span>
+          <small>ลบเมื่อ ${formatDateTime(policy.deletedAt)} โดย ${escapeHtml(policy.deletedBy || "-")}</small>
+        </div>
+        <div class="trash-item__actions">
+          <button type="button" data-restore-policy="${policy.id}">กู้คืน</button>
+          <button type="button" data-purge-policy="${policy.id}">ลบถาวร</button>
+        </div>
+      </article>
+    `).join("")
+    : `
+      <div class="plan-empty plan-empty--compact">
+        <strong>ยังไม่มีรายการในถังพัก</strong>
+        <span>เมื่อย้ายกรมธรรม์ออกจากตารางหลัก รายการจะมาอยู่ตรงนี้ก่อนลบถาวร</span>
+      </div>
+    `;
 }
 
 function renderReportRow(label, value, ratio) {
@@ -990,14 +1024,65 @@ async function exportData() {
   backupFeedback.textContent = "Export ข้อมูลจาก SQLite เรียบร้อยแล้ว";
 }
 
+async function downloadFullBackup() {
+  try {
+    backupFeedback.textContent = "กำลังเตรียม Full Backup...";
+    const response = await fetch("/api/backup/full", { credentials: "same-origin" });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || "ดาวน์โหลด Full Backup ไม่สำเร็จ");
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `mittare-full-backup-${new Date().toISOString().slice(0, 10)}.zip`;
+    link.click();
+    URL.revokeObjectURL(url);
+    backupFeedback.textContent = "ดาวน์โหลด Full Backup ZIP เรียบร้อยแล้ว";
+    await refreshReports();
+  } catch (error) {
+    backupFeedback.textContent = error.message;
+  }
+}
+
 async function clearAllData() {
-  const confirmed = window.confirm("ต้องการลบข้อมูลกรมธรรม์ทั้งหมดในฐานข้อมูลใช่ไหม");
+  const confirmed = window.confirm("ต้องการย้ายข้อมูลกรมธรรม์ทั้งหมดเข้าถังพักใช่ไหม");
   if (!confirmed) return;
   await apiFetch("/api/policies", { method: "DELETE" });
   selectedPolicyId = "";
   resetForm();
   await refreshPoliciesAndReports();
-  backupFeedback.textContent = "ลบข้อมูลทั้งหมดแล้ว";
+  await refreshDeletedPolicies();
+  backupFeedback.textContent = "ย้ายข้อมูลทั้งหมดเข้าถังพักแล้ว";
+}
+
+async function restorePolicy(policyId) {
+  try {
+    await apiFetch(`/api/policies/${policyId}/restore`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    backupFeedback.textContent = "กู้คืนกรมธรรม์แล้ว";
+    await refreshPoliciesAndReports();
+    await refreshDeletedPolicies();
+  } catch (error) {
+    backupFeedback.textContent = error.message;
+  }
+}
+
+async function purgePolicy(policyId) {
+  const policy = deletedPolicies.find((item) => String(item.id) === String(policyId));
+  const confirmed = window.confirm(`ลบถาวร ${policy?.customerName || "กรมธรรม์นี้"} ใช่ไหม ไฟล์แนบจะถูกลบออกจากเซิร์ฟเวอร์ด้วย`);
+  if (!confirmed) return;
+  try {
+    await apiFetch(`/api/policies/${policyId}/purge`, { method: "DELETE" });
+    backupFeedback.textContent = "ลบถาวรเรียบร้อยแล้ว";
+    await refreshPoliciesAndReports();
+    await refreshDeletedPolicies();
+  } catch (error) {
+    backupFeedback.textContent = error.message;
+  }
 }
 
 async function handleProductMediaSubmit(event) {
@@ -1079,12 +1164,15 @@ async function sendAdminAlertSummary() {
 loginForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   try {
+    const username = new FormData(loginForm).get("adminUsername");
     const password = new FormData(loginForm).get("adminPassword");
-    await apiFetch("/api/session", {
+    const sessionPayload = await apiFetch("/api/session", {
       method: "POST",
-      body: JSON.stringify({ password })
+      body: JSON.stringify({ username, password })
     });
+    adminUser = sessionPayload.adminUser || null;
     loginForm.reset();
+    document.querySelector("#admin-username").value = adminUser?.username || "admin";
     setAuthenticated(true);
     await Promise.all([refreshSettings(), refreshPolicies(), refreshReports(), refreshProductMedia()]);
   } catch (error) {
@@ -1095,10 +1183,15 @@ loginForm?.addEventListener("submit", async (event) => {
 logoutButton?.addEventListener("click", async () => {
   await apiFetch("/api/session", { method: "DELETE" });
   policies = [];
+  deletedPolicies = [];
   selectedPolicyId = "";
   productMedia = {};
+  reportOverview = null;
+  adminUser = null;
   adminLineRecipientConfigured = false;
   setAuthenticated(false);
+  renderReports();
+  renderTrashList();
 });
 
 policyForm?.addEventListener("submit", handleFormSubmit);
@@ -1177,7 +1270,18 @@ document.querySelector("#copy-message")?.addEventListener("click", async () => {
 
 document.querySelector("#add-sample-data")?.addEventListener("click", addSampleData);
 document.querySelector("#export-data")?.addEventListener("click", exportData);
+downloadFullBackupButton?.addEventListener("click", downloadFullBackup);
 document.querySelector("#clear-all-data")?.addEventListener("click", clearAllData);
+document.querySelector("#load-trash")?.addEventListener("click", refreshDeletedPolicies);
+trashList?.addEventListener("click", (event) => {
+  const restoreButton = event.target.closest("button[data-restore-policy]");
+  if (restoreButton) {
+    restorePolicy(restoreButton.dataset.restorePolicy);
+    return;
+  }
+  const purgeButton = event.target.closest("button[data-purge-policy]");
+  if (purgeButton) purgePolicy(purgeButton.dataset.purgePolicy);
+});
 
 initializeProductMediaPlanOptions();
 renderPolicyProductOptions();

@@ -9,6 +9,8 @@ import urllib.request
 import base64
 import hashlib
 import hmac
+import io
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -18,11 +20,13 @@ from flask import (
     abort,
     jsonify,
     request,
+    send_file,
     send_from_directory,
     session,
 )
 from werkzeug.exceptions import BadRequest, HTTPException
 from werkzeug.security import safe_join
+from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 
@@ -134,6 +138,7 @@ def create_app() -> Flask:
     def get_session():
         return jsonify({
             "authenticated": is_authenticated(),
+            "adminUser": current_admin_user(),
             "linePushConfigured": bool(app.config["LINE_CHANNEL_ACCESS_TOKEN"]),
             "lineWebhookConfigured": bool(app.config["LINE_CHANNEL_SECRET"]),
         })
@@ -141,11 +146,28 @@ def create_app() -> Flask:
     @app.post("/api/session")
     def login():
         data = request.get_json(silent=True) or {}
+        username = str(data.get("username", "admin")).strip() or "admin"
         password = str(data.get("password", ""))
-        if not secrets.compare_digest(password, app.config["ADMIN_PASSWORD"]):
+        with get_db() as db:
+            admin_user = db.execute(
+                "SELECT * FROM admin_users WHERE username = ? AND is_active = 1",
+                (username,),
+            ).fetchone()
+        password_ok = bool(admin_user and check_password_hash(admin_user["password_hash"], password))
+        # รองรับ deployment เดิมที่ยังส่งแค่ password ในช่วงเปลี่ยนผ่าน
+        legacy_ok = username == "admin" and secrets.compare_digest(password, app.config["ADMIN_PASSWORD"])
+        if not password_ok and not legacy_ok:
             return jsonify({"error": "รหัสผ่านไม่ถูกต้อง"}), 401
         session["admin_authenticated"] = True
-        return jsonify({"authenticated": True})
+        if admin_user:
+            session["admin_user"] = {
+                "username": admin_user["username"],
+                "displayName": admin_user["display_name"],
+                "role": admin_user["role"],
+            }
+        else:
+            session["admin_user"] = {"username": "admin", "displayName": "Admin", "role": "admin"}
+        return jsonify({"authenticated": True, "adminUser": current_admin_user()})
 
     @app.delete("/api/session")
     def logout():
@@ -171,19 +193,37 @@ def create_app() -> Flask:
     @require_admin
     def list_policies():
         with get_db() as db:
-            rows = db.execute("SELECT * FROM policies ORDER BY end_date ASC, updated_at DESC").fetchall()
+            rows = db.execute(
+                "SELECT * FROM policies WHERE COALESCE(deleted_at, '') = '' ORDER BY end_date ASC, updated_at DESC"
+            ).fetchall()
+            return jsonify([policy_to_dict(db, row, include_private=True) for row in rows])
+
+    @app.get("/api/policies/trash")
+    @require_admin
+    def list_deleted_policies():
+        with get_db() as db:
+            rows = db.execute(
+                "SELECT * FROM policies WHERE COALESCE(deleted_at, '') <> '' ORDER BY deleted_at DESC, updated_at DESC"
+            ).fetchall()
             return jsonify([policy_to_dict(db, row, include_private=True) for row in rows])
 
     @app.delete("/api/policies")
     @require_admin
     def delete_all_policies():
         with get_db() as db:
-            attachments = db.execute("SELECT stored_filename FROM attachments").fetchall()
-            total = db.execute("SELECT COUNT(*) AS total FROM policies").fetchone()["total"]
-            log_audit_event(db, "policy.delete_all", None, "ลบข้อมูลกรมธรรม์ทั้งหมด", {"count": total})
-            db.execute("DELETE FROM policies")
-        for attachment in attachments:
-            delete_upload_file(attachment["stored_filename"])
+            total = db.execute(
+                "SELECT COUNT(*) AS total FROM policies WHERE COALESCE(deleted_at, '') = ''"
+            ).fetchone()["total"]
+            now = utc_now()
+            log_audit_event(db, "policy.soft_delete_all", None, "ย้ายกรมธรรม์ทั้งหมดเข้าถังพัก", {"count": total})
+            db.execute(
+                """
+                UPDATE policies
+                SET deleted_at = ?, deleted_by = ?, updated_at = ?
+                WHERE COALESCE(deleted_at, '') = ''
+                """,
+                (now, current_admin_actor(), now),
+            )
         return jsonify({"ok": True})
 
     @app.post("/api/policies")
@@ -276,10 +316,45 @@ def create_app() -> Flask:
     @require_admin
     def delete_policy(policy_id: int):
         with get_db() as db:
-            policy = db.execute("SELECT customer_name, policy_number, public_ref FROM policies WHERE id = ?", (policy_id,)).fetchone()
+            policy = db.execute("SELECT * FROM policies WHERE id = ?", (policy_id,)).fetchone()
+            if not policy:
+                return jsonify({"error": "ไม่พบกรมธรรม์"}), 404
+            now = utc_now()
+            log_audit_event(db, "policy.soft_delete", policy_id, f"ย้ายเข้าถังพัก {policy['customer_name']}", {"reference": policy["policy_number"] or policy["public_ref"]})
+            db.execute(
+                "UPDATE policies SET deleted_at = ?, deleted_by = ?, updated_at = ? WHERE id = ?",
+                (now, current_admin_actor(), now, policy_id),
+            )
+        return jsonify({"ok": True})
+
+    @app.post("/api/policies/<int:policy_id>/restore")
+    @require_admin
+    def restore_policy(policy_id: int):
+        with get_db() as db:
+            policy = db.execute("SELECT * FROM policies WHERE id = ?", (policy_id,)).fetchone()
+            if not policy:
+                return jsonify({"error": "ไม่พบกรมธรรม์"}), 404
+            now = utc_now()
+            log_audit_event(db, "policy.restore", policy_id, f"กู้คืนกรมธรรม์ {policy['customer_name']}", {"reference": policy["policy_number"] or policy["public_ref"]})
+            db.execute(
+                "UPDATE policies SET deleted_at = '', deleted_by = '', updated_at = ? WHERE id = ?",
+                (now, policy_id),
+            )
+            row = db.execute("SELECT * FROM policies WHERE id = ?", (policy_id,)).fetchone()
+            payload = policy_to_dict(db, row, include_private=True)
+        return jsonify(payload)
+
+    @app.delete("/api/policies/<int:policy_id>/purge")
+    @require_admin
+    def purge_policy(policy_id: int):
+        with get_db() as db:
+            policy = db.execute("SELECT * FROM policies WHERE id = ?", (policy_id,)).fetchone()
+            if not policy:
+                return jsonify({"error": "ไม่พบกรมธรรม์"}), 404
+            if not policy["deleted_at"]:
+                raise BadRequest("ต้องย้ายเข้าถังพักก่อนจึงจะลบถาวรได้")
             attachments = db.execute("SELECT stored_filename FROM attachments WHERE policy_id = ?", (policy_id,)).fetchall()
-            if policy:
-                log_audit_event(db, "policy.delete", policy_id, f"ลบกรมธรรม์ {policy['customer_name']}", {"reference": policy["policy_number"] or policy["public_ref"]})
+            log_audit_event(db, "policy.purge", policy_id, f"ลบถาวร {policy['customer_name']}", {"reference": policy["policy_number"] or policy["public_ref"]})
             db.execute("DELETE FROM policies WHERE id = ?", (policy_id,))
         for attachment in attachments:
             delete_upload_file(attachment["stored_filename"])
@@ -609,12 +684,47 @@ def create_app() -> Flask:
     @require_admin
     def export_policies():
         with get_db() as db:
-            rows = db.execute("SELECT * FROM policies ORDER BY updated_at DESC").fetchall()
+            rows = db.execute(
+                "SELECT * FROM policies WHERE COALESCE(deleted_at, '') = '' ORDER BY updated_at DESC"
+            ).fetchall()
+            deleted_rows = db.execute(
+                "SELECT * FROM policies WHERE COALESCE(deleted_at, '') <> '' ORDER BY deleted_at DESC"
+            ).fetchall()
             return jsonify({
                 "exportedAt": utc_now(),
-                "version": 2,
+                "version": 3,
                 "policies": [policy_to_dict(db, row, include_private=True) for row in rows],
+                "deletedPolicies": [policy_to_dict(db, row, include_private=True) for row in deleted_rows],
             })
+
+    @app.get("/api/backup/full")
+    @require_admin
+    def download_full_backup():
+        created_at = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, mode="w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as backup_zip:
+            backup_zip.writestr(
+                "backup-manifest.json",
+                json.dumps({
+                    "createdAt": utc_now(),
+                    "createdBy": current_admin_actor(),
+                    "database": "mittare.sqlite3",
+                    "includes": ["database", "uploads", "product-media"],
+                }, ensure_ascii=False, indent=2),
+            )
+            if DATABASE_PATH.exists():
+                backup_zip.write(DATABASE_PATH, "database/mittare.sqlite3")
+            add_directory_to_zip(backup_zip, UPLOAD_DIR, "uploads")
+            add_directory_to_zip(backup_zip, PRODUCT_MEDIA_DIR, "product-media")
+        archive.seek(0)
+        with get_db() as db:
+            log_audit_event(db, "backup.full", None, "ดาวน์โหลด Full Backup", {"filename": f"mittare-full-backup-{created_at}.zip"})
+        return send_file(
+            archive,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name=f"mittare-full-backup-{created_at}.zip",
+        )
 
     @app.post("/api/demo/seed")
     @require_admin
@@ -648,7 +758,7 @@ def create_app() -> Flask:
             rows = db.execute(
                 f"""
                 SELECT * FROM policies
-                WHERE {" OR ".join(filters)}
+                WHERE COALESCE(deleted_at, '') = '' AND ({" OR ".join(filters)})
                 ORDER BY end_date DESC
                 LIMIT 20
                 """,
@@ -671,6 +781,24 @@ def require_admin(view):
 
 def is_authenticated() -> bool:
     return bool(session.get("admin_authenticated"))
+
+
+def current_admin_user() -> dict[str, str] | None:
+    if not is_authenticated():
+        return None
+    admin_user = session.get("admin_user") or {}
+    return {
+        "username": str(admin_user.get("username", "admin")),
+        "displayName": str(admin_user.get("displayName", "Admin")),
+        "role": str(admin_user.get("role", "admin")),
+    }
+
+
+def current_admin_actor() -> str:
+    admin_user = current_admin_user()
+    if not admin_user:
+        return "admin"
+    return admin_user["displayName"] or admin_user["username"]
 
 
 def get_db() -> sqlite3.Connection:
@@ -702,6 +830,19 @@ def initialize_database() -> None:
               sales_status TEXT NOT NULL DEFAULT 'new',
               next_follow_up TEXT DEFAULT '',
               customer_notes TEXT DEFAULT '',
+              deleted_at TEXT DEFAULT '',
+              deleted_by TEXT DEFAULT '',
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS admin_users (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              username TEXT NOT NULL UNIQUE,
+              display_name TEXT NOT NULL,
+              password_hash TEXT NOT NULL,
+              role TEXT NOT NULL DEFAULT 'admin',
+              is_active INTEGER NOT NULL DEFAULT 1,
               created_at TEXT NOT NULL,
               updated_at TEXT NOT NULL
             );
@@ -810,6 +951,7 @@ def initialize_database() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_policies_end_date ON policies(end_date);
             CREATE INDEX IF NOT EXISTS idx_policies_phone ON policies(customer_phone);
+            CREATE INDEX IF NOT EXISTS idx_admin_users_username ON admin_users(username);
             CREATE INDEX IF NOT EXISTS idx_attachments_policy ON attachments(policy_id);
             CREATE INDEX IF NOT EXISTS idx_product_media_plan ON product_media(plan_id);
             CREATE INDEX IF NOT EXISTS idx_line_message_logs_policy ON line_message_logs(policy_id);
@@ -822,9 +964,13 @@ def initialize_database() -> None:
             """
         )
         ensure_column(db, "policies", "line_user_id", "TEXT DEFAULT ''")
+        ensure_column(db, "policies", "deleted_at", "TEXT DEFAULT ''")
+        ensure_column(db, "policies", "deleted_by", "TEXT DEFAULT ''")
         ensure_column(db, "product_media", "public_url", "TEXT DEFAULT ''")
         ensure_column(db, "product_media", "source", "TEXT NOT NULL DEFAULT 'upload'")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_policies_deleted_at ON policies(deleted_at)")
         db.execute("UPDATE policies SET sales_status = 'waiting' WHERE sales_status = 'claim-followup'")
+        ensure_default_admin_user(db)
     migrate_product_media_json_to_database()
     seed_default_product_media()
 
@@ -834,6 +980,23 @@ def ensure_column(db: sqlite3.Connection, table_name: str, column_name: str, col
     if any(column["name"] == column_name for column in columns):
         return
     db.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
+
+
+def ensure_default_admin_user(db: sqlite3.Connection) -> None:
+    now = utc_now()
+    password = os.environ.get("ADMIN_PASSWORD", "admin123")
+    username = os.environ.get("ADMIN_USERNAME", "admin").strip() or "admin"
+    display_name = os.environ.get("ADMIN_DISPLAY_NAME", "ผู้ดูแลระบบ").strip() or "ผู้ดูแลระบบ"
+    existing = db.execute("SELECT id FROM admin_users WHERE username = ?", (username,)).fetchone()
+    if existing:
+        return
+    db.execute(
+        """
+        INSERT INTO admin_users (username, display_name, password_hash, role, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 1, ?, ?)
+        """,
+        (username, display_name, generate_password_hash(password), "admin", now, now),
+    )
 
 
 def get_setting(db: sqlite3.Connection, key: str) -> str:
@@ -866,7 +1029,7 @@ def log_audit_event(
         INSERT INTO audit_logs (action, policy_id, actor, summary, detail_json, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (action, policy_id, "admin", summary, json.dumps(detail or {}, ensure_ascii=False), utc_now()),
+        (action, policy_id, current_admin_actor(), summary, json.dumps(detail or {}, ensure_ascii=False), utc_now()),
     )
 
 
@@ -888,7 +1051,9 @@ def audit_log_to_dict(row: sqlite3.Row) -> dict[str, Any]:
 
 def build_reports_overview(db: sqlite3.Connection) -> dict[str, Any]:
     today = datetime.now(timezone.utc).date()
-    policies = db.execute("SELECT * FROM policies ORDER BY updated_at DESC").fetchall()
+    policies = db.execute(
+        "SELECT * FROM policies WHERE COALESCE(deleted_at, '') = '' ORDER BY updated_at DESC"
+    ).fetchall()
     active_policies = [row for row in policies if row["sales_status"] not in {"renewed", "lost"}]
     renewed_policies = [row for row in policies if row["sales_status"] == "renewed"]
     followup_due = [
@@ -914,6 +1079,7 @@ def build_reports_overview(db: sqlite3.Connection) -> dict[str, Any]:
             """
             SELECT sales_status, COUNT(*) AS total
             FROM policies
+            WHERE COALESCE(deleted_at, '') = ''
             GROUP BY sales_status
             ORDER BY total DESC, sales_status ASC
             """
@@ -932,6 +1098,7 @@ def build_reports_overview(db: sqlite3.Connection) -> dict[str, Any]:
               SUM(CASE WHEN sales_status NOT IN ('renewed', 'lost') THEN 1 ELSE 0 END) AS active_total,
               SUM(CASE WHEN sales_status NOT IN ('renewed', 'lost') THEN premium_amount ELSE 0 END) AS premium_total
             FROM policies
+            WHERE COALESCE(deleted_at, '') = ''
             GROUP BY agent
             ORDER BY active_total DESC, premium_total DESC
             LIMIT 8
@@ -1099,6 +1266,16 @@ def delete_upload_file(stored_filename: str) -> None:
     target = UPLOAD_DIR / stored_filename
     if target.exists() and target.is_file():
         target.unlink()
+
+
+def add_directory_to_zip(backup_zip: zipfile.ZipFile, source_dir: Path, archive_root: str) -> None:
+    if not source_dir.exists():
+        return
+    for file_path in source_dir.rglob("*"):
+        if not file_path.is_file():
+            continue
+        relative_path = file_path.relative_to(source_dir).as_posix()
+        backup_zip.write(file_path, f"{archive_root}/{relative_path}")
 
 
 def normalize_plan_id(plan_id: str) -> str:
@@ -1548,6 +1725,8 @@ def policy_to_dict(db: sqlite3.Connection, row: sqlite3.Row, include_private: bo
         "salesStatus": row["sales_status"],
         "nextFollowUp": row["next_follow_up"] if include_private else "",
         "customerNotes": row["customer_notes"] if include_private else customer_safe_note(row["customer_notes"]),
+        "deletedAt": row["deleted_at"] if include_private else "",
+        "deletedBy": row["deleted_by"] if include_private else "",
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }

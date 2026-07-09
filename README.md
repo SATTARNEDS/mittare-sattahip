@@ -26,6 +26,8 @@ python -m pip install -r requirements.txt
 
 ```powershell
 $env:ADMIN_PASSWORD="เปลี่ยนเป็นรหัสผ่านที่ปลอดภัย"
+$env:ADMIN_USERNAME="admin"
+$env:ADMIN_DISPLAY_NAME="ชื่อผู้ดูแล"
 $env:SECRET_KEY="เปลี่ยนเป็นค่าสุ่มยาวสำหรับ session"
 $env:LINE_CHANNEL_ACCESS_TOKEN="Channel access token จาก LINE Messaging API ถ้าต้องการใช้ Push"
 $env:LINE_CHANNEL_SECRET="Channel secret จาก Basic settings ถ้าต้องการรับ Webhook"
@@ -48,6 +50,7 @@ python app.py
 ## สิ่งที่หลังบ้านทำได้
 
 - เพิ่ม/แก้ไข/ลบข้อมูลลูกค้าและกรมธรรม์ลง SQLite
+- เข้าสู่ระบบด้วยบัญชีแอดมิน และบันทึกชื่อผู้ดูแลใน Audit Log
 - อัปโหลดรูปภาพและไฟล์เอกสารลง `instance/uploads/`
 - เพิ่ม/ลบรูปประกอบหน้าเว็บ รูปเอกสาร และ PDF สินค้า โดย metadata บันทึกลง SQLite และไฟล์เก็บใน `instance/product-media/`
 - รูปประกอบและเอกสารสินค้าเดิมใน `assets/` / `document/` จะถูก seed เป็น metadata ใน SQLite เพื่อให้เห็นและจัดการจากหลังบ้าน
@@ -56,9 +59,11 @@ python app.py
 - ดูแจ้งเตือนภายในสำหรับกรมธรรม์หมดอายุ ครบกำหนดใน 7/30 วัน และนัดติดตาม
 - จัดการ Checklist เอกสารต่อกรมธรรม์ และ Timeline การติดต่อลูกค้าในหลังบ้าน
 - ดูรายงาน Pipeline, งานตามผู้ดูแล, เบี้ย active รวม และ Audit Log ล่าสุดจากฐานข้อมูล
+- ลบกรมธรรม์แบบ Soft Delete โดยย้ายเข้าถังพักก่อน สามารถกู้คืนหรือลบถาวรได้
 - สร้างข้อความติดตามต่ออายุ ขอเอกสาร หรือนัดชำระ แล้วคัดลอกหรือเปิด LINE Share เพื่อกดส่งเอง
 - ส่ง LINE Push ไปยังผู้ดูแลจากแดชบอร์ดได้เมื่อมี `LINE_CHANNEL_ACCESS_TOKEN` และ `ADMIN_LINE_USER_ID` บนเซิร์ฟเวอร์
 - Export JSON จากฐานข้อมูลเพื่อสำรองข้อมูล
+- ดาวน์โหลด Full Backup ZIP ที่รวม SQLite, ไฟล์แนบ และคลังรูปสินค้า
 - เพิ่มข้อมูลตัวอย่างสำหรับทดสอบหน้าลูกค้า
 
 ## ตั้งค่า LINE Push เพื่อแจ้งผู้ดูแล
@@ -137,7 +142,7 @@ LINE_CHANNEL_SECRET: ใส่เมื่อพร้อมรับ LINE Webho
 ADMIN_LINE_USER_ID: Ueaebf5b870fcdd317383855ff445e460
 ```
 
-5. ตั้ง `ADMIN_PASSWORD` เป็นรหัสผ่านหลังบ้าน และให้ Render สร้าง `SECRET_KEY`
+5. ตั้ง `ADMIN_PASSWORD` เป็นรหัสผ่านหลังบ้าน ตั้ง `ADMIN_USERNAME`/`ADMIN_DISPLAY_NAME` ถ้าต้องการชื่อผู้ดูแลเฉพาะ และให้ Render สร้าง `SECRET_KEY`
 6. เปิด persistent disk ที่ mount path `/var/data` ขนาดเริ่มต้น 1 GB
 7. หลัง deploy เสร็จ Render จะให้ URL รูปแบบ `https://ชื่อเว็บ.onrender.com`
 8. ถ้าต้องการโดเมน `.org` ให้ซื้อโดเมนจากผู้ให้บริการโดเมน แล้วเพิ่ม Custom Domain ใน Render และตั้งค่า DNS ตามที่ Render แจ้ง

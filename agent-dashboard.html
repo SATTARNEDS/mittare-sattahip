@@ -58,6 +58,10 @@
       </div>
       <form class="agent-form agent-login-form" id="agent-login-form">
         <div class="form-row">
+          <label for="admin-username">ชื่อผู้ใช้</label>
+          <input id="admin-username" name="adminUsername" type="text" autocomplete="username" value="admin" required>
+        </div>
+        <div class="form-row">
           <label for="admin-password">รหัสผ่านหลังบ้าน</label>
           <input id="admin-password" name="adminPassword" type="password" autocomplete="current-password" required>
         </div>
@@ -533,10 +537,21 @@
         </div>
         <div class="agent-tool-card">
           <button class="button button--primary" id="export-data" type="button">Export JSON</button>
+          <button class="button button--dark" id="download-full-backup" type="button">Full Backup ZIP</button>
           <a class="button button--dark" href="customer-status.html">เปิดหน้าลูกค้าทดสอบ</a>
-          <button class="text-button agent-danger" id="clear-all-data" type="button">ลบข้อมูลทั้งหมดในฐานข้อมูล</button>
+          <button class="text-button agent-danger" id="clear-all-data" type="button">ย้ายข้อมูลทั้งหมดเข้าถังพัก</button>
           <p id="backup-feedback" role="status" aria-live="polite"></p>
         </div>
+      </div>
+      <div class="container trash-panel" aria-labelledby="trash-title">
+        <div class="trash-panel__header">
+          <div>
+            <h3 id="trash-title">ถังพักกรมธรรม์</h3>
+            <p>รายการที่ลบจากตารางหลักจะมาอยู่ตรงนี้ก่อน สามารถกู้คืนหรือลบถาวรได้</p>
+          </div>
+          <button class="button button--dark button--small" id="load-trash" type="button">โหลดถังพัก</button>
+        </div>
+        <div class="trash-list" id="trash-list" aria-live="polite"></div>
       </div>
     </section>
   </main>
