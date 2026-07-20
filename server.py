@@ -148,7 +148,7 @@ def index():
 
 @app.get("/<path:filename>")
 def static_files(filename: str):
-    if filename not in {"app.js", "styles.css", "favicon.ico"}:
+    if filename not in {"app.js", "styles.css", "favicon.ico", "assets/team-mt4-brand.webp"}:
         return jsonify({"error": "not found"}), 404
     return send_from_directory(BASE_DIR, filename)
 
