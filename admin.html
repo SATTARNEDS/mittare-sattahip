@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>จัดการคลังข้อสอบ | MT4</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">ข้ามไปเนื้อหาหลัก</a>
+  <section class="login-shell" id="login-view">
+    <form class="login-card" id="login-form">
+      <img src="assets/mt4-heart-logo.png" width="72" height="82" alt="โลโก้ทีม MT4">
+      <p class="eyebrow">MT4 Insurance Exam Coach</p>
+      <h1>ระบบจัดการคลังข้อสอบ</h1>
+      <label>ชื่อผู้ใช้<input name="username" autocomplete="username" required></label>
+      <label>รหัสผ่าน<input name="password" type="password" autocomplete="current-password" required></label>
+      <p class="form-message" id="login-message" role="alert"></p>
+      <button class="primary" type="submit">เข้าสู่ระบบ</button>
+      <a href="/">กลับหน้าฝึกทำข้อสอบ</a>
+    </form>
+  </section>
+
+  <div id="admin-view" hidden>
+    <header class="topbar">
+      <a class="admin-brand" href="/admin"><span>MT4</span><strong>คลังข้อสอบ</strong></a>
+      <div><span id="admin-name"></span><button class="ghost" id="logout-button" type="button">ออกจากระบบ</button></div>
+    </header>
+    <main id="main-content">
+      <section class="page-heading">
+        <div><p class="eyebrow">ADMIN WORKSPACE</p><h1>จัดการและตรวจข้อสอบ</h1><p>ข้อสอบใหม่จะเป็นฉบับร่างและไม่ถูกสุ่มจนกว่า Admin จะอนุมัติ</p></div>
+        <button class="primary" id="new-question-button" type="button">+ เพิ่มข้อสอบ</button>
+      </section>
+
+      <section class="stats" aria-label="สรุปสถานะ">
+        <article><span>ทั้งหมด</span><strong id="stat-total">0</strong></article>
+        <article><span>ฉบับร่าง</span><strong id="stat-draft">0</strong></article>
+        <article><span>รอตรวจ</span><strong id="stat-pending">0</strong></article>
+        <article><span>เผยแพร่</span><strong id="stat-published">0</strong></article>
+        <article><span>ระงับ</span><strong id="stat-paused">0</strong></article>
+      </section>
+
+      <nav class="workspace-tabs" aria-label="ส่วนจัดการ">
+        <button class="tab active" data-panel="questions-panel" type="button">คลังข้อสอบ</button>
+        <button class="tab admin-only" data-panel="users-panel" type="button">ผู้ดูแล</button>
+        <button class="tab admin-only" data-panel="audit-panel" type="button">ประวัติระบบ</button>
+      </nav>
+
+      <section id="questions-panel" class="panel">
+        <div class="filters">
+          <input id="search-input" type="search" placeholder="ค้นหาคำถามหรือคำอธิบาย" aria-label="ค้นหาข้อสอบ">
+          <select id="status-filter" aria-label="กรองสถานะ"><option value="">ทุกสถานะ</option><option value="draft">ฉบับร่าง</option><option value="pending">รอตรวจ</option><option value="published">เผยแพร่</option><option value="paused">ระงับ</option></select>
+          <button class="secondary" id="refresh-button" type="button">รีเฟรช</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>ข้อ</th><th>คำถาม</th><th>หมวด</th><th>สถานะ</th><th>แก้ล่าสุด</th><th><span class="sr-only">คำสั่ง</span></th></tr></thead><tbody id="questions-body"></tbody></table></div>
+        <p class="empty" id="questions-empty" hidden>ไม่พบข้อสอบตามเงื่อนไข</p>
+      </section>
+
+      <section id="users-panel" class="panel" hidden>
+        <div class="split-panel">
+          <form class="card" id="user-form"><h2>เพิ่มบัญชีหัวหน้าทีม</h2><label>ชื่อที่แสดง<input name="displayName" required minlength="2"></label><label>ชื่อผู้ใช้ภาษาอังกฤษ<input name="username" required minlength="4" pattern="[A-Za-z0-9._-]+"></label><label>รหัสผ่านเริ่มต้น<input name="password" type="password" required minlength="12"></label><label>บทบาท<select name="role"><option value="head">หัวหน้าทีม</option><option value="admin">Admin</option></select></label><p class="form-message" id="user-message" role="alert"></p><button class="primary" type="submit">สร้างบัญชี</button></form>
+          <div class="card"><h2>บัญชีผู้ดูแล</h2><div id="users-list"></div></div>
+        </div>
+      </section>
+
+      <section id="audit-panel" class="panel" hidden><div class="card"><h2>Audit Log</h2><div id="audit-list" class="timeline"></div></div></section>
+    </main>
+  </div>
+
+  <dialog id="question-dialog">
+    <form id="question-form">
+      <div class="dialog-header"><div><p class="eyebrow">QUESTION EDITOR</p><h2 id="question-dialog-title">เพิ่มข้อสอบ</h2></div><button class="icon-button" id="close-dialog" type="button" aria-label="ปิด">×</button></div>
+      <input name="id" type="hidden">
+      <div class="form-grid">
+        <label>หมวดข้อสอบ<input name="topic" required maxlength="100" list="topic-list"></label>
+        <label>ระดับความยาก<select name="difficulty"><option value="easy">ง่าย</option><option value="medium">ปานกลาง</option><option value="hard">ยาก</option></select></label>
+        <label>ความถี่ที่คาดว่าออกสอบ<select name="examFrequency"><option value="high">ออกบ่อย</option><option value="medium">ปานกลาง</option><option value="low">เสริมความรู้</option></select></label>
+        <label>วันที่ตรวจข้อมูล<input name="verifiedAt" type="date"></label>
+      </div>
+      <label>คำถาม<textarea name="q" required minlength="10" maxlength="1000" rows="3"></textarea></label>
+      <fieldset><legend>ตัวเลือกและคำตอบที่ถูก</legend><div id="options-editor"></div></fieldset>
+      <label>คำอธิบายเฉลย<textarea name="e" required minlength="10" maxlength="2000" rows="3"></textarea></label>
+      <div class="form-grid"><label>ชื่อแหล่งอ้างอิง<input name="sourceTitle" maxlength="300" placeholder="เช่น ประมวลกฎหมายแพ่งและพาณิชย์ มาตรา 865"></label><label>ลิงก์อ้างอิง HTTPS<input name="sourceUrl" type="url" placeholder="https://..."></label></div>
+      <p class="form-message" id="question-message" role="alert"></p>
+      <div class="dialog-actions"><button class="secondary" id="cancel-question" type="button">ยกเลิก</button><button class="primary" type="submit">บันทึกฉบับร่าง</button></div>
+    </form>
+  </dialog>
+  <dialog id="history-dialog"><div class="dialog-header"><h2>ประวัติข้อสอบ</h2><button class="icon-button" id="close-history" type="button" aria-label="ปิด">×</button></div><div id="history-list" class="timeline"></div></dialog>
+  <datalist id="topic-list"></datalist>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="admin.js" defer></script>
+</body>
+</html>

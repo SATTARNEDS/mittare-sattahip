@@ -12,3 +12,9 @@ services:
         value: "1"
       - key: DATABASE_PATH
         value: /tmp/mittare-exam/exam_coach.sqlite3
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_USERNAME
+        value: mt4admin
+      - key: ADMIN_PASSWORD
+        sync: false
