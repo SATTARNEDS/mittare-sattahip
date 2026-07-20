@@ -48,6 +48,11 @@ async function restoreSession() {
     await refreshWorkspace();
   } catch (_error) {
     loginView.hidden = false;
+    try {
+      const setup = await api("/api/admin/setup-status");
+      if (!setup.configured) document.getElementById("login-message").textContent = "ยังไม่มีบัญชี Admin กรุณาตั้ง ADMIN_PASSWORD ใน Render แล้ว redeploy";
+      else if (!setup.persistentStorage) document.getElementById("login-message").textContent = "คำเตือน: ฐานข้อมูล Render ยังเป็นพื้นที่ชั่วคราว ควรเพิ่ม Persistent Disk ก่อนบันทึกข้อมูลจริง";
+    } catch (_setupError) { /* หน้าเข้าสู่ระบบยังใช้งานได้แม้ตรวจสถานะไม่สำเร็จ */ }
   }
 }
 

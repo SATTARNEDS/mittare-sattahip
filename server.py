@@ -452,6 +452,12 @@ def admin_login():
     })
 
 
+@app.get("/api/admin/setup-status")
+def admin_setup_status():
+    configured = get_database().execute("SELECT 1 FROM admin_users WHERE is_active=1 LIMIT 1").fetchone() is not None
+    return jsonify({"configured": configured, "persistentStorage": not str(DATABASE_PATH).startswith("/tmp/")})
+
+
 @app.post("/api/admin/logout")
 @require_admin()
 def admin_logout():
