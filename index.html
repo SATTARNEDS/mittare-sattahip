@@ -115,7 +115,11 @@
   <footer>
     <img class="footer-team-logo" src="assets/one-team-logo.png" width="672" height="283" alt="โลโก้ The One Team MT4">
     <p>สื่อฝึกอบรมภายใน • ตรวจทานเนื้อหา 20 ก.ค. 2569 • ควรตรวจประกาศล่าสุดก่อนใช้อ้างอิงกับลูกค้า</p>
-    <p><a href="https://onlinewebadt2.oic.or.th/oiciiqe/" target="_blank" rel="noopener noreferrer">ระบบสอบ คปภ.</a> · <a href="https://oiceservice.oic.or.th/calculator/claims.php" target="_blank" rel="noopener noreferrer">ตรวจสิทธิ พ.ร.บ. จาก คปภ.</a></p>
+    <nav class="official-links" aria-label="ลิงก์บริการของสำนักงาน คปภ.">
+      <a href="https://onlinewebadt2.oic.or.th/oiciiqe/" target="_blank" rel="noopener noreferrer">ระบบสอบ คปภ. <span aria-hidden="true">↗</span></a>
+      <a href="https://oiceservice.oic.or.th/calculator/claims.php" target="_blank" rel="noopener noreferrer" aria-describedby="oic-calculator-note">ทดลองคำนวณสินไหม พ.ร.บ. เบื้องต้น <span aria-hidden="true">↗</span></a>
+    </nav>
+    <p class="external-service-note" id="oic-calculator-note"><strong>หมายเหตุ:</strong> เครื่องมือคำนวณเป็นระบบภายนอกของ คปภ. รูปแบบหน้าเว็บอาจแสดงผลไม่สมบูรณ์บนโทรศัพท์ และผลที่ได้เป็นเพียงการคำนวณเบื้องต้น ไม่ใช่การยืนยันสิทธิเรียกร้องสินไหม</p>
   </footer>
   <dialog id="confirm-dialog"><form method="dialog"><h2>ส่งคำตอบตอนนี้?</h2><p id="confirm-message"></p><div class="dialog-actions"><button class="secondary-button" value="cancel">ตรวจอีกครั้ง</button><button class="primary-button" value="confirm">ส่งคำตอบ</button></div></form></dialog>
   <dialog id="user-dialog"><form id="user-form"><img src="assets/mt4-heart-logo.png" width="527" height="599" alt=""><h2>ลงชื่อเข้าฝึกกับทีม MT4</h2><p>ใช้ชื่อเล่นหรือชื่อที่ทีมจำได้ ผลคะแนนจะบันทึกในตารางอันดับส่วนกลาง</p><label for="display-name">ชื่อผู้ฝึก</label><input id="display-name" name="displayName" minlength="2" maxlength="40" autocomplete="name" required placeholder="เช่น คุณเอ MT4"><p class="form-error" id="user-form-error" role="alert"></p><div class="dialog-actions"><button class="secondary-button" id="close-user-dialog" type="button">ไว้ภายหลัง</button><button class="primary-button" type="submit">เริ่มใช้งาน</button></div></form></dialog>
