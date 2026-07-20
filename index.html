@@ -14,11 +14,11 @@
 <body>
   <a class="skip-link" href="#main-content">ข้ามไปยังเนื้อหา</a>
   <header class="site-header">
-    <a class="brand" href="index.html" aria-label="MITTARE Exam Coach หน้าหลัก">
-      <span class="brand-mark"><img src="assets/mt4-heart-logo.webp" width="640" height="640" alt="โลโก้มิตรแท้ MT4"></span>
+    <a class="brand" id="brand-home" href="/" aria-label="กลับหน้าหลัก มิตรแท้ ทีม MT4">
+      <span class="brand-mark"><img src="assets/mt4-heart-logo.png" width="527" height="599" alt="โลโก้มิตรแท้ MT4"></span>
       <span><strong>มิตรแท้ ทีม MT4</strong><small>Insurance Exam Coach</small></span>
     </a>
-    <button class="icon-button" id="theme-toggle" type="button" aria-label="เปลี่ยนโหมดสี" title="เปลี่ยนโหมดสี">☾</button>
+    <div class="header-actions"><button class="user-button" id="user-menu" type="button">👤 <span id="current-user-name">ลงชื่อเข้าใช้</span></button><button class="icon-button" id="theme-toggle" type="button" aria-label="เปลี่ยนโหมดสี" title="เปลี่ยนโหมดสี">☾</button></div>
   </header>
 
   <main id="main-content">
@@ -29,14 +29,16 @@
         <h1>ติวเข้มให้จำแม่น<br><em>พร้อมสอบอย่างมั่นใจ</em></h1>
         <p>เน้นหัวข้อที่มักสับสนในหมวด พ.ร.บ. รถยนต์และประกันภัยรถยนต์ภาคสมัครใจ พร้อมเฉลยอธิบายทุกข้อ</p>
         <div class="hero-actions">
-          <button class="primary-button" id="start-exam" type="button">เริ่มทำข้อสอบ 20 ข้อ</button>
+          <button class="primary-button" id="start-exam" type="button">เริ่มทำข้อสอบ</button>
           <button class="secondary-button" id="start-flashcards" type="button">ทบทวน Flashcards</button>
         </div>
-        <p class="microcopy">สุ่มจากคลัง <span id="question-bank-count">120</span> ข้อ • ลดข้อซ้ำจากรอบล่าสุด • ใช้เวลาประมาณ 15 นาที</p>
+        <label class="topic-picker" for="exam-topic"><span>เลือกหมวดที่ต้องการฝึก</span><select id="exam-topic"><option value="">ทุกหมวด (สุ่มรวม)</option></select></label>
+        <p class="microcopy">สุ่มสูงสุด 20 ข้อจากคลัง <span id="question-bank-count">120</span> ข้อ • ลดข้อซ้ำจากรอบล่าสุด</p>
+        <p class="source-notice">แนวข้อสอบเรียบเรียงตามหมวดหลักสูตร คปภ. ไม่ใช่คลังข้อสอบเก่าที่ คปภ. รับรองหรือเผยแพร่อย่างเป็นทางการ</p>
       </div>
       <div class="score-card" aria-label="สถิติการฝึกของคุณ">
         <div class="team-brand-panel">
-          <img src="assets/mt4-heart-logo.webp" width="640" height="640" alt="โลโก้มิตรแท้ ที่หนึ่ง MT4" fetchpriority="high">
+          <img src="assets/team-community-logo.png" width="417" height="410" alt="โลโก้อัศวิน พลังมิตร ทีม MT4" fetchpriority="high">
           <p><strong>มิตรแท้ ทีม MT4</strong><span>Insurance Exam Coach</span><small>เรียนรู้ • ฝึกฝน • พร้อมสอบ</small></p>
         </div>
         <div class="score-ring" id="best-score-ring"><strong id="best-score">—</strong><span>คะแนนสูงสุด</span></div>
@@ -45,6 +47,11 @@
           <div><dt>ตอบสะสม</dt><dd id="answered-count">0 ข้อ</dd></div>
         </dl>
       </div>
+    </section>
+
+    <section class="leaderboard-section" id="leaderboard-section" aria-labelledby="leaderboard-title">
+      <div class="section-heading"><span class="eyebrow">Team progress</span><h2 id="leaderboard-title">อันดับการฝึกของทีม MT4</h2></div>
+      <div class="leaderboard-card"><ol id="leaderboard-list"><li class="empty-leaderboard">ยังไม่มีผลการฝึก ลงชื่อแล้วเริ่มทำข้อสอบได้เลย</li></ol></div>
     </section>
 
     <section class="topic-section" id="topics" aria-labelledby="topics-title">
@@ -69,7 +76,7 @@
       <div class="progress-track" aria-hidden="true"><span id="progress-bar"></span></div>
       <div class="exam-layout">
         <article class="question-card">
-          <div class="question-meta"><span id="question-topic">พ.ร.บ. รถยนต์</span><button class="flag-button" id="flag-question" type="button" aria-pressed="false">☆ ทำเครื่องหมาย</button></div>
+          <div class="question-meta"><span id="question-topic">หมวด: พ.ร.บ. รถยนต์</span><button class="flag-button" id="flag-question" type="button" aria-pressed="false">☆ ทำเครื่องหมาย</button></div>
           <h2 id="question-text" tabindex="-1"></h2>
           <fieldset id="answer-options"><legend class="sr-only">เลือกคำตอบหนึ่งข้อ</legend></fieldset>
           <div class="question-actions">
@@ -88,7 +95,7 @@
     <section class="result-shell" id="result-view" hidden aria-live="polite">
       <div class="result-summary">
         <span class="eyebrow">ผลการทำข้อสอบ</span><h2 id="result-title">ทำได้ดีมาก!</h2>
-        <div class="result-score"><strong id="result-score">0</strong><span>/ 20 ข้อ</span></div>
+        <div class="result-score"><strong id="result-score">0</strong><span id="result-total">/ 20 ข้อ</span></div>
         <p id="result-message"></p>
         <div class="result-actions"><button class="primary-button" id="retry-exam" type="button">สุ่มชุดใหม่</button><button class="secondary-button" id="back-home" type="button">กลับหน้าหลัก</button></div>
       </div>
@@ -106,10 +113,12 @@
     </section>
   </main>
   <footer>
+    <img class="footer-team-logo" src="assets/one-team-logo.png" width="672" height="283" alt="โลโก้ The One Team MT4">
     <p>สื่อฝึกอบรมภายใน • ตรวจทานเนื้อหา 20 ก.ค. 2569 • ควรตรวจประกาศล่าสุดก่อนใช้อ้างอิงกับลูกค้า</p>
     <p><a href="https://onlinewebadt2.oic.or.th/oiciiqe/" target="_blank" rel="noopener noreferrer">ระบบสอบ คปภ.</a> · <a href="https://oiceservice.oic.or.th/calculator/claims.php" target="_blank" rel="noopener noreferrer">ตรวจสิทธิ พ.ร.บ. จาก คปภ.</a></p>
   </footer>
   <dialog id="confirm-dialog"><form method="dialog"><h2>ส่งคำตอบตอนนี้?</h2><p id="confirm-message"></p><div class="dialog-actions"><button class="secondary-button" value="cancel">ตรวจอีกครั้ง</button><button class="primary-button" value="confirm">ส่งคำตอบ</button></div></form></dialog>
+  <dialog id="user-dialog"><form id="user-form"><img src="assets/mt4-heart-logo.png" width="527" height="599" alt=""><h2>ลงชื่อเข้าฝึกกับทีม MT4</h2><p>ใช้ชื่อเล่นหรือชื่อที่ทีมจำได้ ผลคะแนนจะบันทึกในตารางอันดับส่วนกลาง</p><label for="display-name">ชื่อผู้ฝึก</label><input id="display-name" name="displayName" minlength="2" maxlength="40" autocomplete="name" required placeholder="เช่น คุณเอ MT4"><p class="form-error" id="user-form-error" role="alert"></p><div class="dialog-actions"><button class="secondary-button" id="close-user-dialog" type="button">ไว้ภายหลัง</button><button class="primary-button" type="submit">เริ่มใช้งาน</button></div></form></dialog>
   <script src="app.js" defer></script>
 </body>
 </html>

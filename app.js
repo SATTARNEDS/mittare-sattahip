@@ -57,7 +57,7 @@ const questionBank = [
 
 const EXAM_SIZE = 20;
 const storageKey = "mittareExamCoachStateV1";
-const views = ["home-view", "topics", "exam-view", "result-view", "flashcard-view"];
+const views = ["home-view", "topics", "leaderboard-section", "exam-view", "result-view", "flashcard-view"];
 let examQuestions = [];
 let currentQuestionIndex = 0;
 let responses = {};
@@ -66,6 +66,8 @@ let timerInterval;
 let elapsedSeconds = 0;
 let flashcards = [];
 let flashcardIndex = 0;
+let currentSelectedTopic = "";
+let pendingExamStart = false;
 
 const $ = (id) => document.getElementById(id);
 const shuffle = (items) => {
@@ -79,9 +81,9 @@ const shuffle = (items) => {
 
 function getState() {
   try {
-    return {...{attempts:0, answered:0, best:0, recentIds:[], theme:"light"}, ...JSON.parse(localStorage.getItem(storageKey) || "{}")};
+    return {...{attempts:0, answered:0, best:0, recentIds:[], theme:"light", user:null}, ...JSON.parse(localStorage.getItem(storageKey) || "{}")};
   } catch {
-    return {attempts:0, answered:0, best:0, recentIds:[], theme:"light"};
+    return {attempts:0, answered:0, best:0, recentIds:[], theme:"light", user:null};
   }
 }
 
@@ -95,16 +97,19 @@ function updateDashboard() {
   $("attempt-count").textContent = `${state.attempts} รอบ`;
   $("answered-count").textContent = `${state.answered} ข้อ`;
   $("best-score-ring").style.setProperty("--score", `${state.best}%`);
+  $("current-user-name").textContent = state.user?.displayName || "ลงชื่อเข้าใช้";
 }
 
 function showView(name) {
-  views.forEach((id) => $(id).hidden = id !== name && !(name === "home-view" && id === "topics"));
+  const homeSections = new Set(["home-view", "topics", "leaderboard-section"]);
+  views.forEach((id) => $(id).hidden = name === "home-view" ? !homeSections.has(id) : id !== name);
   window.scrollTo({top:0, behavior:"smooth"});
 }
 
-async function fetchQuestions(limit, excludedIds = []) {
+async function fetchQuestions(limit, excludedIds = [], topic = "") {
   const query = new URLSearchParams({limit:String(limit)});
   if (excludedIds.length) query.set("exclude", excludedIds.join(","));
+  if (topic) query.set("topic", topic);
   try {
     const response = await fetch(`/api/questions?${query}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -112,23 +117,30 @@ async function fetchQuestions(limit, excludedIds = []) {
   } catch (error) {
     console.warn("ใช้คลังสำรองในเบราว์เซอร์ เนื่องจากเชื่อมต่อ API ไม่สำเร็จ", error);
     const recent = new Set(excludedIds);
-    const ordered = [...shuffle(questionBank.filter((item) => !recent.has(item.id))), ...shuffle(questionBank.filter((item) => recent.has(item.id)))];
+    const pool = topic ? questionBank.filter((item) => item.topic === topic) : questionBank;
+    const ordered = [...shuffle(pool.filter((item) => !recent.has(item.id))), ...shuffle(pool.filter((item) => recent.has(item.id)))];
     return limit === "all" ? ordered : ordered.slice(0, Number(limit));
   }
 }
 
 async function buildExamSet() {
-  const questions = await fetchQuestions(EXAM_SIZE, getState().recentIds || []);
+  const questions = await fetchQuestions(EXAM_SIZE, getState().recentIds || [], currentSelectedTopic);
   return questions.map((item) => ({...item, displayOptions:shuffle(item.o)}));
 }
 
 async function startExam() {
+  if (!getState().user?.token) {
+    pendingExamStart = true;
+    $("user-dialog").showModal();
+    return;
+  }
+  currentSelectedTopic = $("exam-topic").value;
   const startButton = $("start-exam");
   startButton.disabled = true;
   startButton.textContent = "กำลังสุ่มข้อสอบ...";
   examQuestions = await buildExamSet();
   startButton.disabled = false;
-  startButton.textContent = "เริ่มทำข้อสอบ 20 ข้อ";
+  startButton.textContent = "เริ่มทำข้อสอบ";
   currentQuestionIndex = 0;
   responses = {};
   flaggedQuestions = new Set();
@@ -157,10 +169,10 @@ function createQuestionNavigation() {
 
 function renderQuestion() {
   const question = examQuestions[currentQuestionIndex];
-  $("question-counter").textContent = `ข้อ ${currentQuestionIndex + 1}/${EXAM_SIZE}`;
+  $("question-counter").textContent = `ข้อ ${currentQuestionIndex + 1}/${examQuestions.length}`;
   $("answered-progress").textContent = `ตอบแล้ว ${Object.keys(responses).length} ข้อ`;
-  $("progress-bar").style.width = `${((currentQuestionIndex + 1) / EXAM_SIZE) * 100}%`;
-  $("question-topic").textContent = question.topic;
+  $("progress-bar").style.width = `${((currentQuestionIndex + 1) / examQuestions.length) * 100}%`;
+  $("question-topic").textContent = `หมวด: ${question.topic}`;
   $("question-text").textContent = question.q;
   $("question-text").focus({preventScroll:true});
   const flagged = flaggedQuestions.has(question.id);
@@ -186,7 +198,7 @@ function renderQuestion() {
     fieldset.append(label);
   });
   $("previous-question").disabled = currentQuestionIndex === 0;
-  $("next-question").textContent = currentQuestionIndex === EXAM_SIZE - 1 ? "ตรวจและส่งคำตอบ" : "ข้อต่อไป";
+  $("next-question").textContent = currentQuestionIndex === examQuestions.length - 1 ? "ตรวจและส่งคำตอบ" : "ข้อต่อไป";
   updateQuestionNavigation();
 }
 
@@ -201,7 +213,7 @@ function updateQuestionNavigation() {
 }
 
 function requestSubmission() {
-  const unanswered = EXAM_SIZE - Object.keys(responses).length;
+  const unanswered = examQuestions.length - Object.keys(responses).length;
   $("confirm-message").textContent = unanswered ? `ยังไม่ได้ตอบ ${unanswered} ข้อ ระบบจะนับข้อที่เว้นไว้เป็นตอบผิด` : "คุณตอบครบทุกข้อแล้ว ต้องการดูคะแนนและเฉลยหรือไม่?";
   $("confirm-dialog").showModal();
 }
@@ -209,15 +221,32 @@ function requestSubmission() {
 function submitExam() {
   clearInterval(timerInterval);
   const score = examQuestions.filter((item) => responses[item.id] === item.a).length;
-  const percentage = Math.round((score / EXAM_SIZE) * 100);
+  const percentage = Math.round((score / examQuestions.length) * 100);
   const state = getState();
-  saveState({attempts:state.attempts + 1, answered:state.answered + EXAM_SIZE, best:Math.max(state.best, percentage), recentIds:examQuestions.map((item) => item.id)});
+  saveState({attempts:state.attempts + 1, answered:state.answered + examQuestions.length, best:Math.max(state.best, percentage), recentIds:examQuestions.map((item) => item.id)});
   $("result-score").textContent = score;
+  $("result-total").textContent = `/ ${examQuestions.length} ข้อ`;
   $("result-title").textContent = percentage >= 80 ? "ยอดเยี่ยม จำได้แม่นมาก!" : percentage >= 60 ? "ผ่านเกณฑ์ฝึกซ้อมแล้ว" : "ทบทวนอีกนิด แล้วลองใหม่";
   $("result-message").textContent = `ได้ ${percentage}% • ใช้เวลา ${Math.floor(elapsedSeconds / 60)} นาที ${elapsedSeconds % 60} วินาที`;
   renderReview("all");
   showView("result-view");
   updateDashboard();
+  saveAttemptToServer(score);
+}
+
+async function saveAttemptToServer(score) {
+  const user = getState().user;
+  if (!user?.token) return;
+  const topicScores = {};
+  examQuestions.forEach((item) => {
+    topicScores[item.topic] ||= {correct:0,total:0};
+    topicScores[item.topic].total += 1;
+    if (responses[item.id] === item.a) topicScores[item.topic].correct += 1;
+  });
+  try {
+    await fetch("/api/attempts", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:user.token,score,totalQuestions:examQuestions.length,durationSeconds:elapsedSeconds,selectedTopic:currentSelectedTopic || "ทุกหมวด",topicScores})});
+    loadLeaderboard();
+  } catch (error) { console.warn("บันทึกผลส่วนกลางไม่สำเร็จ", error); }
 }
 
 function renderReview(filter) {
@@ -271,6 +300,60 @@ function goHome() {
   clearInterval(timerInterval);
   showView("home-view");
   updateDashboard();
+  loadLeaderboard();
+}
+
+async function loadTopics() {
+  try {
+    const response = await fetch("/api/topics");
+    const topics = await response.json();
+    const select = $("exam-topic");
+    topics.forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.topic;
+      option.textContent = `${item.topic} (${item.questionCount} ข้อ)`;
+      select.append(option);
+    });
+  } catch (error) { console.warn("โหลดหมวดข้อสอบไม่สำเร็จ", error); }
+}
+
+async function loadLeaderboard() {
+  try {
+    const response = await fetch("/api/leaderboard");
+    const leaders = await response.json();
+    if (!leaders.length) return;
+    $("leaderboard-list").replaceChildren(...leaders.map((leader, index) => {
+      const item = document.createElement("li");
+      const rank = document.createElement("span");
+      rank.className = "leader-rank";
+      rank.textContent = index < 3 ? ["🥇","🥈","🥉"][index] : String(index + 1);
+      const name = document.createElement("span");
+      name.className = "leader-name";
+      name.textContent = leader.display_name;
+      const detail = document.createElement("small");
+      detail.textContent = `${leader.attempts} รอบ • เฉลี่ย ${leader.average_score}%`;
+      name.append(detail);
+      const score = document.createElement("strong");
+      score.textContent = `${leader.best_score}%`;
+      item.append(rank, name, score);
+      return item;
+    }));
+  } catch (error) { console.warn("โหลดอันดับทีมไม่สำเร็จ", error); }
+}
+
+async function registerUser(event) {
+  event.preventDefault();
+  const displayName = $("display-name").value.trim();
+  $("user-form-error").textContent = "";
+  try {
+    const response = await fetch("/api/users", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({displayName})});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "ลงชื่อไม่สำเร็จ");
+    saveState({user:result});
+    updateDashboard();
+    $("user-dialog").close();
+    if (pendingExamStart) { pendingExamStart = false; startExam(); }
+  } catch (error) { $("user-form-error").textContent = error.message; }
 }
 
 $("start-exam").addEventListener("click", startExam);
@@ -279,9 +362,13 @@ $("start-flashcards").addEventListener("click", startFlashcards);
 $("exit-exam").addEventListener("click", goHome);
 $("back-home").addEventListener("click", goHome);
 $("exit-flashcards").addEventListener("click", goHome);
+$("brand-home").addEventListener("click", (event) => {event.preventDefault(); goHome();});
+$("user-menu").addEventListener("click", () => {$("display-name").value = ""; $("user-form-error").textContent = ""; $("user-dialog").showModal();});
+$("close-user-dialog").addEventListener("click", () => {pendingExamStart = false; $("user-dialog").close();});
+$("user-form").addEventListener("submit", registerUser);
 $("previous-question").addEventListener("click", () => {currentQuestionIndex -= 1; renderQuestion();});
 $("next-question").addEventListener("click", () => {
-  if (currentQuestionIndex < EXAM_SIZE - 1) {currentQuestionIndex += 1; renderQuestion();} else {requestSubmission();}
+  if (currentQuestionIndex < examQuestions.length - 1) {currentQuestionIndex += 1; renderQuestion();} else {requestSubmission();}
 });
 $("submit-exam").addEventListener("click", requestSubmission);
 $("confirm-dialog").addEventListener("close", (event) => {if (event.target.returnValue === "confirm") submitExam();});
@@ -308,6 +395,8 @@ const initialState = getState();
 document.documentElement.dataset.theme = initialState.theme;
 $("theme-toggle").textContent = initialState.theme === "dark" ? "☀" : "☾";
 updateDashboard();
+loadTopics();
+loadLeaderboard();
 fetch("/api/meta").then((response) => response.json()).then((meta) => {
   $("question-bank-count").textContent = meta.totalQuestions;
 }).catch(() => {});
