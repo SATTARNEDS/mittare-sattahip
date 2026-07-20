@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="เว็บฝึกทำข้อสอบนายหน้าประกันวินาศภัย หมวด พ.ร.บ. รถยนต์และประกันภัยรถยนต์ภาคสมัครใจ">
+  <meta name="theme-color" content="#083344">
+  <title>MITTARE Exam Coach | ติวสอบประกันวินาศภัย</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">ข้ามไปยังเนื้อหา</a>
+  <header class="site-header">
+    <a class="brand" href="index.html" aria-label="MITTARE Exam Coach หน้าหลัก">
+      <span class="brand-mark" aria-hidden="true">M</span>
+      <span><strong>MITTARE</strong><small>Exam Coach</small></span>
+    </a>
+    <button class="icon-button" id="theme-toggle" type="button" aria-label="เปลี่ยนโหมดสี" title="เปลี่ยนโหมดสี">☾</button>
+  </header>
+
+  <main id="main-content">
+    <section class="hero" id="home-view">
+      <div class="hero-copy">
+        <span class="eyebrow">หลักสูตรเร่งรัดสำหรับทีมงานใหม่</span>
+        <h1>ฝึกให้จำแม่น ก่อนลงสนามสอบจริง</h1>
+        <p>เน้นหัวข้อที่มักสับสนในหมวด พ.ร.บ. รถยนต์และประกันภัยรถยนต์ภาคสมัครใจ พร้อมเฉลยอธิบายทุกข้อ</p>
+        <div class="hero-actions">
+          <button class="primary-button" id="start-exam" type="button">เริ่มทำข้อสอบ 20 ข้อ</button>
+          <button class="secondary-button" id="start-flashcards" type="button">ทบทวน Flashcards</button>
+        </div>
+        <p class="microcopy">สุ่มจากคลัง <span id="question-bank-count">120</span> ข้อ • ลดข้อซ้ำจากรอบล่าสุด • ใช้เวลาประมาณ 15 นาที</p>
+      </div>
+      <div class="score-card" aria-label="สถิติการฝึกของคุณ">
+        <div class="score-ring" id="best-score-ring"><strong id="best-score">—</strong><span>คะแนนสูงสุด</span></div>
+        <dl class="stats-grid">
+          <div><dt>ทำแล้ว</dt><dd id="attempt-count">0 รอบ</dd></div>
+          <div><dt>ตอบสะสม</dt><dd id="answered-count">0 ข้อ</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="topic-section" id="topics" aria-labelledby="topics-title">
+      <div class="section-heading">
+        <span class="eyebrow">Exam focus</span>
+        <h2 id="topics-title">หัวข้อสำคัญที่ควรจำ</h2>
+      </div>
+      <div class="topic-grid">
+        <article class="topic-card"><span class="topic-icon">01</span><h3>พ.ร.บ. รถยนต์</h3><p>ผู้ประสบภัย ค่าเสียหายเบื้องต้น วงเงิน และการเรียกร้อง</p></article>
+        <article class="topic-card"><span class="topic-icon">02</span><h3>ภาคสมัครใจ</h3><p>ความต่างของประเภท 1, 2, 3, 2+ และ 3+</p></article>
+        <article class="topic-card"><span class="topic-icon">03</span><h3>เงื่อนไขกรมธรรม์</h3><p>หน้าที่ผู้เอาประกันภัย ข้อยกเว้น และค่าเสียหายส่วนแรก</p></article>
+        <article class="topic-card"><span class="topic-icon">04</span><h3>ความคุ้มครองเสริม</h3><p>PA ค่ารักษาพยาบาล และประกันตัวผู้ขับขี่</p></article>
+      </div>
+    </section>
+
+    <section class="exam-shell" id="exam-view" hidden aria-live="polite">
+      <div class="exam-topbar">
+        <button class="text-button" id="exit-exam" type="button">← ออกจากข้อสอบ</button>
+        <div class="exam-progress-copy"><strong id="question-counter">ข้อ 1/20</strong><span id="answered-progress">ตอบแล้ว 0 ข้อ</span></div>
+        <div class="timer" aria-label="เวลาที่ใช้">⏱ <span id="timer">00:00</span></div>
+      </div>
+      <div class="progress-track" aria-hidden="true"><span id="progress-bar"></span></div>
+      <div class="exam-layout">
+        <article class="question-card">
+          <div class="question-meta"><span id="question-topic">พ.ร.บ. รถยนต์</span><button class="flag-button" id="flag-question" type="button" aria-pressed="false">☆ ทำเครื่องหมาย</button></div>
+          <h2 id="question-text" tabindex="-1"></h2>
+          <fieldset id="answer-options"><legend class="sr-only">เลือกคำตอบหนึ่งข้อ</legend></fieldset>
+          <div class="question-actions">
+            <button class="secondary-button" id="previous-question" type="button">ย้อนกลับ</button>
+            <button class="primary-button" id="next-question" type="button">ข้อต่อไป</button>
+          </div>
+        </article>
+        <aside class="question-nav" aria-label="รายการข้อสอบ">
+          <h3>ภาพรวมข้อสอบ</h3><div class="question-dots" id="question-dots"></div>
+          <div class="nav-legend"><span><i class="answered"></i>ตอบแล้ว</span><span><i class="flagged"></i>ทำเครื่องหมาย</span></div>
+          <button class="submit-button" id="submit-exam" type="button">ส่งคำตอบและดูเฉลย</button>
+        </aside>
+      </div>
+    </section>
+
+    <section class="result-shell" id="result-view" hidden aria-live="polite">
+      <div class="result-summary">
+        <span class="eyebrow">ผลการทำข้อสอบ</span><h2 id="result-title">ทำได้ดีมาก!</h2>
+        <div class="result-score"><strong id="result-score">0</strong><span>/ 20 ข้อ</span></div>
+        <p id="result-message"></p>
+        <div class="result-actions"><button class="primary-button" id="retry-exam" type="button">สุ่มชุดใหม่</button><button class="secondary-button" id="back-home" type="button">กลับหน้าหลัก</button></div>
+      </div>
+      <div class="review-header"><h2>เฉลยและคำอธิบาย</h2><div class="review-filters" role="group" aria-label="กรองเฉลย"><button class="filter-button active" data-filter="all" type="button">ทั้งหมด</button><button class="filter-button" data-filter="wrong" type="button">ข้อที่ตอบผิด</button></div></div>
+      <div id="review-list" class="review-list"></div>
+    </section>
+
+    <section class="flashcard-shell" id="flashcard-view" hidden>
+      <div class="flashcard-header"><button class="text-button" id="exit-flashcards" type="button">← กลับหน้าหลัก</button><strong id="flashcard-counter">1 / 120</strong></div>
+      <button class="flashcard" id="flashcard" type="button" aria-label="กดเพื่อพลิกดูคำตอบ">
+        <span class="flashcard-face flashcard-front"><small id="flashcard-topic"></small><strong id="flashcard-question"></strong><em>แตะเพื่อดูคำตอบ</em></span>
+        <span class="flashcard-face flashcard-back"><small>คำตอบ</small><strong id="flashcard-answer"></strong><em>แตะเพื่อกลับด้านคำถาม</em></span>
+      </button>
+      <div class="flashcard-actions"><button class="secondary-button" id="previous-card" type="button">ก่อนหน้า</button><button class="primary-button" id="next-card" type="button">ใบถัดไป</button></div>
+    </section>
+  </main>
+  <footer>
+    <p>สื่อฝึกอบรมภายใน • ตรวจทานเนื้อหา 20 ก.ค. 2569 • ควรตรวจประกาศล่าสุดก่อนใช้อ้างอิงกับลูกค้า</p>
+    <p><a href="https://onlinewebadt2.oic.or.th/oiciiqe/" target="_blank" rel="noopener noreferrer">ระบบสอบ คปภ.</a> · <a href="https://oiceservice.oic.or.th/calculator/claims.php" target="_blank" rel="noopener noreferrer">ตรวจสิทธิ พ.ร.บ. จาก คปภ.</a></p>
+  </footer>
+  <dialog id="confirm-dialog"><form method="dialog"><h2>ส่งคำตอบตอนนี้?</h2><p id="confirm-message"></p><div class="dialog-actions"><button class="secondary-button" value="cancel">ตรวจอีกครั้ง</button><button class="primary-button" value="confirm">ส่งคำตอบ</button></div></form></dialog>
+  <script src="app.js" defer></script>
+</body>
+</html>
