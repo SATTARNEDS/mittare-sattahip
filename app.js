@@ -143,7 +143,26 @@ async function restoreMemberSession() {
 function showView(name) {
   const homeSections = new Set(["home-view", "topics", "leaderboard-section"]);
   views.forEach((id) => $(id).hidden = name === "home-view" ? !homeSections.has(id) : id !== name);
+  document.body.classList.toggle("exam-active", name === "exam-view");
+  if (name !== "exam-view") closeQuestionNavigation();
   window.scrollTo({top:0, behavior:"smooth"});
+}
+
+function openQuestionNavigation() {
+  $("question-navigation").classList.add("is-open");
+  $("question-nav-backdrop").classList.add("is-open");
+  $("open-question-nav").setAttribute("aria-expanded", "true");
+  document.body.classList.add("question-nav-open");
+  window.setTimeout(() => $("close-question-nav").focus(), 50);
+}
+
+function closeQuestionNavigation() {
+  const navigation = $("question-navigation");
+  if (!navigation) return;
+  navigation.classList.remove("is-open");
+  $("question-nav-backdrop").classList.remove("is-open");
+  $("open-question-nav").setAttribute("aria-expanded", "false");
+  document.body.classList.remove("question-nav-open");
 }
 
 async function fetchQuestions(limit, excludedIds = [], topic = "") {
@@ -252,7 +271,7 @@ function createQuestionNavigation() {
     button.className = "question-dot";
     button.textContent = index + 1;
     button.setAttribute("aria-label", `ไปข้อ ${index + 1}`);
-    button.addEventListener("click", () => {currentQuestionIndex = index; renderQuestion();});
+    button.addEventListener("click", () => {currentQuestionIndex = index; renderQuestion(); closeQuestionNavigation();});
     return button;
   }));
 }
@@ -261,6 +280,7 @@ function renderQuestion() {
   const question = examQuestions[currentQuestionIndex];
   $("question-counter").textContent = `ข้อ ${currentQuestionIndex + 1}/${examQuestions.length}`;
   $("answered-progress").textContent = `ตอบแล้ว ${Object.keys(responses).length} ข้อ`;
+  $("question-nav-summary").textContent = `ตอบแล้ว ${Object.keys(responses).length} จาก ${examQuestions.length} ข้อ`;
   $("progress-bar").style.width = `${((currentQuestionIndex + 1) / examQuestions.length) * 100}%`;
   $("question-topic").textContent = `หมวด: ${question.topic}`;
   $("question-text").textContent = question.q;
@@ -563,6 +583,10 @@ $("next-question").addEventListener("click", () => {
   if (currentQuestionIndex < examQuestions.length - 1) {currentQuestionIndex += 1; renderQuestion();} else {requestSubmission();}
 });
 $("submit-exam").addEventListener("click", requestSubmission);
+$("open-question-nav").addEventListener("click", openQuestionNavigation);
+$("close-question-nav").addEventListener("click", closeQuestionNavigation);
+$("question-nav-backdrop").addEventListener("click", closeQuestionNavigation);
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeQuestionNavigation(); });
 $("confirm-dialog").addEventListener("close", (event) => {if (event.target.returnValue === "confirm") submitExam();});
 $("flag-question").addEventListener("click", () => {
   const id = examQuestions[currentQuestionIndex].id;

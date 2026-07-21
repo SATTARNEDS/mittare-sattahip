@@ -79,6 +79,7 @@
         <button class="text-button" id="exit-exam" type="button">← ออกจากข้อสอบ</button>
         <div class="exam-progress-copy"><strong id="question-counter">ข้อ 1/20</strong><span id="answered-progress">ตอบแล้ว 0 ข้อ</span></div>
         <div class="timer" aria-label="เวลาที่ใช้">⏱ <span id="timer">00:00</span></div>
+        <button class="question-list-button" id="open-question-nav" type="button" aria-expanded="false" aria-controls="question-navigation">▦ ดูเลขข้อ</button>
       </div>
       <div class="progress-track" aria-hidden="true"><span id="progress-bar"></span></div>
       <div class="exam-layout">
@@ -91,11 +92,13 @@
             <button class="primary-button" id="next-question" type="button">ข้อต่อไป</button>
           </div>
         </article>
-        <aside class="question-nav" aria-label="รายการข้อสอบ">
-          <h3>ภาพรวมข้อสอบ</h3><div class="question-dots" id="question-dots"></div>
+        <aside class="question-nav" id="question-navigation" aria-label="รายการข้อสอบ">
+          <div class="question-nav__header"><div><h3>ภาพรวมข้อสอบ</h3><span id="question-nav-summary">เลือกข้อที่ต้องการทำ</span></div><button class="question-nav__close" id="close-question-nav" type="button" aria-label="ปิดรายการข้อ">×</button></div>
+          <div class="question-dots" id="question-dots"></div>
           <div class="nav-legend"><span><i class="answered"></i>ตอบแล้ว</span><span><i class="flagged"></i>ทำเครื่องหมาย</span></div>
           <button class="submit-button" id="submit-exam" type="button">ส่งคำตอบและดูเฉลย</button>
         </aside>
+        <button class="question-nav-backdrop" id="question-nav-backdrop" type="button" aria-label="ปิดรายการข้อ" tabindex="-1"></button>
       </div>
     </section>
 
