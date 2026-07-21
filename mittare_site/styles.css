@@ -2199,5 +2199,39 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
 /* CTA ระบบฝึกข้อสอบ ใช้เขียว-เหลืองเดียวกับแบรนด์ */
 .main-nav .exam-nav-cta{background:#f4df16;color:#0d2d1e!important;border:2px solid #f4df16;border-radius:999px;padding:.62rem 1rem;font-weight:800;box-shadow:0 8px 22px rgba(244,223,22,.25)}
 .main-nav .exam-nav-cta:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(244,223,22,.34)}
+
+/* Mobile-priority agent dashboard: replace the 980px table with readable cards. */
+@media (max-width: 700px) {
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body { min-width: 320px; overflow-x: hidden; }
+  input, select, textarea { min-height: 50px; font-size: 16px; }
+  button, a { touch-action: manipulation; }
+  .site-header { padding-top: env(safe-area-inset-top); }
+  .agent-page .main-nav { position: fixed; top: calc(110px + env(safe-area-inset-top)); max-height: calc(100dvh - 110px - env(safe-area-inset-top)); padding-bottom: calc(24px + env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
+  .agent-page .menu-toggle { min-height: 48px; }
+  .agent-page .agent-toolbar .button { width: 100%; min-height: 50px; }
+  .agent-table-wrap { overflow: visible; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+  .agent-table, .agent-table tbody, .agent-table tr, .agent-table td { display: block; width: 100%; }
+  .agent-table { min-width: 0; }
+  .agent-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .agent-table tbody { display: grid; gap: 14px; }
+  .agent-table tbody tr { padding: 15px; background: var(--white); border: 1px solid rgba(7,86,79,.1); border-radius: 18px; box-shadow: 0 10px 25px rgba(6,63,59,.07); }
+  .agent-table td { display: grid; grid-template-columns: 78px minmax(0,1fr); gap: 10px; padding: 9px 0; border: 0; overflow-wrap: anywhere; }
+  .agent-table td::before { color: var(--muted); font-size: .7rem; font-weight: 800; }
+  .agent-table td:nth-child(1)::before { content: "ลูกค้า"; }
+  .agent-table td:nth-child(2)::before { content: "กรมธรรม์"; }
+  .agent-table td:nth-child(3)::before { content: "หมดอายุ"; }
+  .agent-table td:nth-child(4)::before { content: "สถานะ"; }
+  .agent-table td:nth-child(5)::before { content: "ติดตาม"; }
+  .agent-table td:nth-child(6) { display: block; padding-top: 13px; margin-top: 4px; border-top: 1px solid var(--line); }
+  .agent-table td:nth-child(6)::before { content: none; }
+  .agent-table-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+  .agent-table-actions button { min-height: 46px; padding-inline: 8px; border-radius: 12px; }
+  .attachment-dialog { width: 100%; max-height: 94dvh; margin: auto 0 0; border-radius: 22px 22px 0 0; }
+}
+@media (max-width: 380px) {
+  .agent-table-actions { grid-template-columns: 1fr; }
+  .agent-page .menu-toggle::before { content: "เมนู"; }
+}
 .button--exam{background:#f4df16!important;color:#0d2d1e!important;border-color:#f4df16!important;font-weight:800;box-shadow:0 12px 30px rgba(244,223,22,.3)}
 .button--exam:hover{transform:translateY(-3px);box-shadow:0 16px 34px rgba(244,223,22,.4)}
