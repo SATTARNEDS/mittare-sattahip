@@ -263,19 +263,27 @@ def initialize_database() -> None:
     bootstrap_password = os.environ.get("ADMIN_PASSWORD", "")
     if bootstrap_username and len(bootstrap_password) >= 12:
         existing_admin = database.execute("SELECT id FROM admin_users LIMIT 1").fetchone()
-        reset_requested = os.environ.get("RESET_ADMIN_PASSWORD", "0") == "1"
+        reset_requested = os.environ.get("RESET_ADMIN_PASSWORD", "0").strip().lower() in {"1", "true", "yes"}
         reset_target = database.execute(
             "SELECT id FROM admin_users WHERE username=?", (bootstrap_username,)
         ).fetchone()
-        if reset_requested and reset_target is not None:
+        if reset_requested:
+            password_hash = generate_password_hash(bootstrap_password)
+            if reset_target is not None:
+                database.execute(
+                    "UPDATE admin_users SET password_hash=?, is_active=1, updated_at=? WHERE id=?",
+                    (password_hash, utc_now(), reset_target["id"]),
+                )
+            else:
+                database.execute(
+                    "INSERT INTO admin_users(username, password_hash, display_name, role) VALUES (?, ?, ?, 'admin')",
+                    (bootstrap_username, password_hash, "ผู้ดูแลระบบ MT4"),
+                )
+            # Member throttles start with "member|"; every other key belongs to the admin login.
             database.execute(
-                "UPDATE admin_users SET password_hash=?, is_active=1, updated_at=? WHERE id=?",
-                (generate_password_hash(bootstrap_password), utc_now(), reset_target["id"]),
+                "DELETE FROM login_throttle WHERE throttle_key NOT LIKE 'member|%'"
             )
-            database.execute(
-                "DELETE FROM login_throttle WHERE throttle_key LIKE ?",
-                (f"%|{bootstrap_username.casefold()}",),
-            )
+            print(f"[admin-reset] password reset and login unlocked for {bootstrap_username}", flush=True)
         elif existing_admin is None:
             database.execute(
                 "INSERT INTO admin_users(username, password_hash, display_name, role) VALUES (?, ?, ?, 'admin')",

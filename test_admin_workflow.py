@@ -129,12 +129,23 @@ class AdminWorkflowTest(unittest.TestCase):
                 "/api/admin/login", json={"username": "testadmin", "password": new_password}
             )
             self.assertEqual(login.status_code, 200)
+            os.environ["RESET_ADMIN_PASSWORD"] = "true"
+            os.environ["ADMIN_USERNAME"] = "recoveryadmin"
+            with server.app.app_context():
+                server.initialize_database()
+            recovery_login = server.app.test_client().post(
+                "/api/admin/login", json={"username": "recoveryadmin", "password": new_password}
+            )
+            self.assertEqual(recovery_login.status_code, 200)
         finally:
             os.environ["RESET_ADMIN_PASSWORD"] = "0"
+            os.environ["ADMIN_USERNAME"] = "testadmin"
             os.environ["ADMIN_PASSWORD"] = "Strong-Test-Password-123"
             with server.app.app_context():
                 os.environ["RESET_ADMIN_PASSWORD"] = "1"
                 server.initialize_database()
+                server.get_database().execute("UPDATE admin_users SET is_active=0 WHERE username='recoveryadmin'")
+                server.get_database().commit()
                 os.environ["RESET_ADMIN_PASSWORD"] = "0"
 
     def test_head_cannot_publish(self) -> None:
