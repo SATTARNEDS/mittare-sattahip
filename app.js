@@ -191,7 +191,7 @@ async function startExam() {
   startButton.textContent = "กำลังสุ่มข้อสอบ...";
   examQuestions = await buildExamSet();
   startButton.disabled = false;
-  startButton.textContent = "ฝึกหมวดที่เลือก";
+  startButton.textContent = currentSelectedTopic ? "ฝึกหมวดที่เลือก" : "สุ่มฝึกทุกหมวด";
   currentQuestionIndex = 0;
   responses = {};
   flaggedQuestions = new Set();
@@ -423,7 +423,7 @@ async function loadTopics() {
       option.textContent = `${item.topic} (${item.questionCount} ข้อ)`;
       select.append(option);
     });
-    if (topics.some((item) => item.topic === ETHICS_TOPIC)) select.value = ETHICS_TOPIC;
+    select.value = "";
   } catch (error) { console.warn("โหลดหมวดข้อสอบไม่สำเร็จ", error); }
 }
 
@@ -532,6 +532,9 @@ async function updateMemberAccount(event) {
 }
 
 $("start-exam").addEventListener("click", startExam);
+$("exam-topic").addEventListener("change", (event) => {
+  $("start-exam").textContent = event.target.value ? "ฝึกหมวดที่เลือก" : "สุ่มฝึกทุกหมวด";
+});
 $("start-simulation").addEventListener("click", startSimulation);
 $("retry-exam").addEventListener("click", () => examMode === "simulation" ? startSimulation() : startExam());
 $("start-flashcards").addEventListener("click", startFlashcards);
