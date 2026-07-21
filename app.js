@@ -56,6 +56,8 @@ const questionBank = [
 ];
 
 const EXAM_SIZE = 20;
+const ETHICS_TOPIC = "จรรยาบรรณและศีลธรรมของตัวแทนประกันวินาศภัย";
+const activeQuestionBank = questionBank.filter((item) => !item.topic.includes("นายหน้า"));
 const storageKey = "mittareExamCoachStateV1";
 const views = ["home-view", "topics", "leaderboard-section", "exam-view", "result-view", "flashcard-view"];
 let examQuestions = [];
@@ -68,6 +70,9 @@ let flashcards = [];
 let flashcardIndex = 0;
 let currentSelectedTopic = "";
 let pendingExamStart = false;
+let examMode = "practice";
+let examDurationSeconds = 0;
+let simulationRules = null;
 
 const $ = (id) => document.getElementById(id);
 const shuffle = (items) => {
@@ -152,7 +157,7 @@ async function fetchQuestions(limit, excludedIds = [], topic = "") {
   } catch (error) {
     console.warn("ใช้คลังสำรองในเบราว์เซอร์ เนื่องจากเชื่อมต่อ API ไม่สำเร็จ", error);
     const recent = new Set(excludedIds);
-    const pool = topic ? questionBank.filter((item) => item.topic === topic) : questionBank;
+    const pool = topic ? activeQuestionBank.filter((item) => item.topic === topic) : activeQuestionBank;
     const ordered = [...shuffle(pool.filter((item) => !recent.has(item.id))), ...shuffle(pool.filter((item) => recent.has(item.id)))];
     return limit === "all" ? ordered : ordered.slice(0, Number(limit));
   }
@@ -163,19 +168,30 @@ async function buildExamSet() {
   return questions.map((item) => ({...item, displayOptions:shuffle(item.o)}));
 }
 
+async function buildSimulationSet() {
+  const response = await fetch("/exam/api/exam-simulation");
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || "สร้างชุดจำลองสอบไม่สำเร็จ");
+  examDurationSeconds = result.durationSeconds;
+  simulationRules = result;
+  return result.questions.map((item) => ({...item, displayOptions:shuffle(item.o)}));
+}
+
 async function startExam() {
   if (!getState().user?.token) {
-    pendingExamStart = true;
+    pendingExamStart = "practice";
     $("user-dialog").showModal();
     return;
   }
+  examMode = "practice";
+  examDurationSeconds = 0;
   currentSelectedTopic = $("exam-topic").value;
   const startButton = $("start-exam");
   startButton.disabled = true;
   startButton.textContent = "กำลังสุ่มข้อสอบ...";
   examQuestions = await buildExamSet();
   startButton.disabled = false;
-  startButton.textContent = "เริ่มทำข้อสอบ";
+  startButton.textContent = "ฝึกหมวดที่เลือก";
   currentQuestionIndex = 0;
   responses = {};
   flaggedQuestions = new Set();
@@ -186,8 +202,47 @@ async function startExam() {
   clearInterval(timerInterval);
   timerInterval = setInterval(() => {
     elapsedSeconds += 1;
-    $("timer").textContent = `${String(Math.floor(elapsedSeconds / 60)).padStart(2,"0")}:${String(elapsedSeconds % 60).padStart(2,"0")}`;
+    updateTimer();
   }, 1000);
+}
+
+async function startSimulation() {
+  if (!getState().user?.token) {
+    pendingExamStart = "simulation";
+    $("user-dialog").showModal();
+    return;
+  }
+  examMode = "simulation";
+  currentSelectedTopic = "จำลองสอบจริง";
+  const button = $("start-simulation");
+  button.disabled = true;
+  button.textContent = "กำลังจัดชุดข้อสอบ...";
+  try { examQuestions = await buildSimulationSet(); }
+  catch (error) { alert(error.message); return; }
+  finally { button.disabled = false; button.textContent = "จำลองสอบจริง 60 ข้อ"; }
+  currentQuestionIndex = 0;
+  responses = {};
+  flaggedQuestions = new Set();
+  elapsedSeconds = 0;
+  showView("exam-view");
+  createQuestionNavigation();
+  renderQuestion();
+  updateTimer();
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    elapsedSeconds += 1;
+    if (examDurationSeconds > 0 && elapsedSeconds >= examDurationSeconds) { submitExam(); return; }
+    updateTimer();
+  }, 1000);
+}
+
+function updateTimer() {
+  const seconds = examMode === "simulation" && examDurationSeconds > 0 ? Math.max(0, examDurationSeconds - elapsedSeconds) : elapsedSeconds;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  $("timer").textContent = hours ? `${String(hours).padStart(2,"0")}:${String(minutes).padStart(2,"0")}:${String(remainder).padStart(2,"0")}` : `${String(minutes).padStart(2,"0")}:${String(remainder).padStart(2,"0")}`;
+  $("timer").parentElement.setAttribute("aria-label", examMode === "simulation" && examDurationSeconds > 0 ? "เวลาคงเหลือ" : "เวลาที่ใช้");
 }
 
 function createQuestionNavigation() {
@@ -255,14 +310,32 @@ function requestSubmission() {
 
 function submitExam() {
   clearInterval(timerInterval);
-  const score = examQuestions.filter((item) => responses[item.id] === item.a).length;
-  const percentage = Math.round((score / examQuestions.length) * 100);
+  const correctCount = examQuestions.filter((item) => responses[item.id] === item.a).length;
+  const ethicsItems = examQuestions.filter((item) => item.topic === ETHICS_TOPIC);
+  const ethicsScore = ethicsItems.filter((item) => responses[item.id] === item.a).length;
+  const score = examMode === "simulation"
+    ? ethicsScore + (correctCount - ethicsScore) * (simulationRules?.otherPointPerQuestion || 2)
+    : correctCount;
+  const otherScore = (correctCount - ethicsScore) * (simulationRules?.otherPointPerQuestion || 2);
+  const totalPoints = examMode === "simulation" ? (simulationRules?.totalPoints || 100) : examQuestions.length;
+  const percentage = Math.round((score / totalPoints) * 100);
   const state = getState();
   saveState({attempts:state.attempts + 1, answered:state.answered + examQuestions.length, best:Math.max(state.best, percentage), recentIds:examQuestions.map((item) => item.id)});
   $("result-score").textContent = score;
-  $("result-total").textContent = `/ ${examQuestions.length} ข้อ`;
-  $("result-title").textContent = percentage >= 80 ? "ยอดเยี่ยม จำได้แม่นมาก!" : percentage >= 60 ? "ผ่านเกณฑ์ฝึกซ้อมแล้ว" : "ทบทวนอีกนิด แล้วลองใหม่";
+  $("result-total").textContent = examMode === "simulation" ? "/ 100 คะแนน" : `/ ${examQuestions.length} ข้อ`;
+  const ethicsPassed = !ethicsItems.length || ethicsScore >= (simulationRules?.ethicsPassCorrect || 14);
+  const otherPassed = otherScore >= (simulationRules?.otherPassPoints || 48);
+  const simulationPassed = ethicsPassed && otherPassed;
+  $("result-title").textContent = examMode === "simulation"
+    ? (simulationPassed ? "ผ่านเกณฑ์จำลองสอบ" : "ยังไม่ผ่านเกณฑ์จำลองสอบ")
+    : (percentage >= 80 ? "ยอดเยี่ยม จำได้แม่นมาก!" : percentage >= 60 ? "ผ่านเกณฑ์ฝึกซ้อมแล้ว" : "ทบทวนอีกนิด แล้วลองใหม่");
   $("result-message").textContent = `ได้ ${percentage}% • ใช้เวลา ${Math.floor(elapsedSeconds / 60)} นาที ${elapsedSeconds % 60} วินาที`;
+  const criteria = $("result-criteria");
+  criteria.hidden = examMode !== "simulation";
+  if (examMode === "simulation") {
+    criteria.className = `result-criteria ${simulationPassed ? "passed" : "failed"}`;
+    criteria.textContent = `จรรยาบรรณ ${ethicsScore}/20 คะแนน ${ethicsPassed ? "ผ่าน" : "ไม่ผ่าน"} • วิชาอื่น ${otherScore}/80 คะแนน ${otherPassed ? "ผ่าน" : "ไม่ผ่าน"} • รวม ${score}/100 คะแนน`;
+  }
   renderReview("all");
   showView("result-view");
   updateDashboard();
@@ -279,7 +352,8 @@ async function saveAttemptToServer(score) {
     if (responses[item.id] === item.a) topicScores[item.topic].correct += 1;
   });
   try {
-    await fetch("/exam/api/attempts", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:user.token,score,totalQuestions:examQuestions.length,durationSeconds:elapsedSeconds,selectedTopic:currentSelectedTopic || "ทุกหมวด",topicScores})});
+    const scoredTotal = examMode === "simulation" ? (simulationRules?.totalPoints || 100) : examQuestions.length;
+    await fetch("/exam/api/attempts", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:user.token,score,totalQuestions:scoredTotal,durationSeconds:elapsedSeconds,selectedTopic:currentSelectedTopic || "ทุกหมวด",topicScores})});
     loadLeaderboard();
   } catch (error) { console.warn("บันทึกผลส่วนกลางไม่สำเร็จ", error); }
 }
@@ -349,6 +423,7 @@ async function loadTopics() {
       option.textContent = `${item.topic} (${item.questionCount} ข้อ)`;
       select.append(option);
     });
+    if (topics.some((item) => item.topic === ETHICS_TOPIC)) select.value = ETHICS_TOPIC;
   } catch (error) { console.warn("โหลดหมวดข้อสอบไม่สำเร็จ", error); }
 }
 
@@ -386,7 +461,7 @@ async function registerUser(event) {
     if (!response.ok) throw new Error(result.error || "สมัครสมาชิกไม่สำเร็จ");
     saveMember(result);
     $("user-dialog").close();
-    if (pendingExamStart) { pendingExamStart = false; startExam(); }
+    if (pendingExamStart) { const mode = pendingExamStart; pendingExamStart = false; mode === "simulation" ? startSimulation() : startExam(); }
   } catch (error) { $("user-form-error").textContent = error.message; }
 }
 
@@ -400,7 +475,7 @@ async function loginMember(event) {
     if (!response.ok) throw new Error(result.error || "เข้าสู่ระบบไม่สำเร็จ");
     saveMember(result);
     $("user-dialog").close();
-    if (pendingExamStart) { pendingExamStart = false; startExam(); }
+    if (pendingExamStart) { const mode = pendingExamStart; pendingExamStart = false; mode === "simulation" ? startSimulation() : startExam(); }
   } catch (error) { $("login-form-error").textContent = error.message; }
 }
 
@@ -457,7 +532,8 @@ async function updateMemberAccount(event) {
 }
 
 $("start-exam").addEventListener("click", startExam);
-$("retry-exam").addEventListener("click", startExam);
+$("start-simulation").addEventListener("click", startSimulation);
+$("retry-exam").addEventListener("click", () => examMode === "simulation" ? startSimulation() : startExam());
 $("start-flashcards").addEventListener("click", startFlashcards);
 $("exit-exam").addEventListener("click", goHome);
 $("back-home").addEventListener("click", goHome);

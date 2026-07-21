@@ -32,6 +32,19 @@ app.config.update(
 )
 
 QUESTION_STATUSES = {"draft", "pending", "published", "paused"}
+PDF_SOURCE_TITLE = "แนวข้อสอบนายหน้าประกันภัย 2567 ได้จากแหววมา.pdf (หัวเอกสารระบุอัปเดต 2565)"
+AGENT_PDF_SOURCE_TITLE = "รวมสอบตัวแทน.pdf หน้า 5-18"
+ETHICS_TOPIC = "จรรยาบรรณและศีลธรรมของตัวแทนประกันวินาศภัย"
+SIMULATION_SECTIONS = (
+    ("จรรยาบรรณตัวแทนประกันวินาศภัย", ETHICS_TOPIC, 20, None, None),
+    ("ความรู้ทั่วไปเกี่ยวกับการประกันวินาศภัย", "หลักการประกันภัยและกฎหมายแพ่งพาณิชย์", 4, 1094, 1117),
+    ("วิชาประกันอัคคีภัย", "ประกันอัคคีภัยและความเสี่ยงภัยทรัพย์สิน", 4, None, None),
+    ("วิชาการประกันภัยรถยนต์", "ประกันภัยรถยนต์", 4, None, None),
+    ("วิชาการประกันภัยทางทะเลและขนส่ง", "ประกันภัยทางทะเลและขนส่ง", 4, None, None),
+    ("วิชาการประกันภัยเบ็ดเตล็ด", "ประกันภัยเบ็ดเตล็ด", 4, None, None),
+    ("ประมวลกฎหมายแพ่งและพาณิชย์ว่าด้วยการประกันภัย", "หลักการประกันภัยและกฎหมายแพ่งพาณิชย์", 10, 1118, 1237),
+    ("พ.ร.บ.ประกันวินาศภัย", "พระราชบัญญัติประกันวินาศภัย", 10, None, None),
+)
 ADMIN_ROLES = {"head", "admin"}
 
 
@@ -207,10 +220,36 @@ def initialize_database() -> None:
         [
             (
                 row[0], row[1], row[2], json.dumps(row[3], ensure_ascii=False), row[4], row[5],
-                "แนวข้อสอบนายหน้าประกันภัย 2567 ได้จากแหววมา.pdf (หัวเอกสารระบุอัปเดต 2565)",
+                PDF_SOURCE_TITLE,
             )
             for row in PDF_QUESTIONS_2567
         ],
+    )
+    agent_ethics_rows = []
+    for filename in ("agent_ethics_questions_1.json", "agent_ethics_questions_1b.json",
+                     "agent_ethics_questions_2.json", "agent_ethics_questions_3.json"):
+        with (BASE_DIR / filename).open("r", encoding="utf-8") as source_file:
+            agent_ethics_rows.extend(json.load(source_file))
+    database.executemany(
+        """
+        INSERT INTO questions(id, topic, question_text, options_json, correct_answer, explanation,
+                              source_title, status, is_active, published_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'published', 1, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET topic=excluded.topic, question_text=excluded.question_text,
+            options_json=excluded.options_json, correct_answer=excluded.correct_answer,
+            explanation=excluded.explanation, source_title=excluded.source_title,
+            status='published', is_active=1
+        """,
+        [(row["id"], row["topic"], row["q"], json.dumps(row["o"], ensure_ascii=False), row["a"], row["e"],
+          AGENT_PDF_SOURCE_TITLE) for row in agent_ethics_rows],
+    )
+    # พักคลังนายหน้าไว้ก่อนตามขอบเขตระบบตัวแทน โดยไม่ลบข้อมูลหรือประวัติการแก้ไข
+    database.execute(
+        "UPDATE questions SET is_active=0, status='paused' WHERE topic LIKE '%นายหน้า%'"
+    )
+    # เอกสารต้นฉบับมีข้อซ้ำ 4 คู่ จึงพักสำเนาซ้ำเพื่อไม่ให้สุ่มเจอคำถามเดียวกันในชุดเดียว
+    database.execute(
+        "UPDATE questions SET is_active=0, status='paused' WHERE id IN (3025, 3034, 3037, 3040)"
     )
     bootstrap_username = os.environ.get("ADMIN_USERNAME", "").strip()
     bootstrap_password = os.environ.get("ADMIN_PASSWORD", "")
@@ -331,13 +370,19 @@ def api_meta():
     row = get_database().execute(
         "SELECT COUNT(*) AS total, COUNT(DISTINCT topic) AS topics FROM questions WHERE is_active=1 AND status='published'"
     ).fetchone()
-    return jsonify({"totalQuestions": row["total"], "totalTopics": row["topics"], "examSize": 20})
+    return jsonify({
+        "totalQuestions": row["total"], "totalTopics": row["topics"], "examSize": 20,
+        "simulation": {"totalQuestions": 60, "totalPoints": 100,
+                       "ethicsQuestions": 20, "ethicsPassCorrect": 14, "otherPassPoints": 48},
+    })
 
 
 @app.get("/api/topics")
 def api_topics():
     rows = get_database().execute(
-        "SELECT topic, COUNT(*) AS question_count FROM questions WHERE is_active=1 AND status='published' GROUP BY topic ORDER BY topic"
+        "SELECT topic, COUNT(*) AS question_count FROM questions WHERE is_active=1 AND status='published' "
+        "GROUP BY topic ORDER BY CASE WHEN topic=? THEN 0 ELSE 1 END, topic",
+        (ETHICS_TOPIC,),
     ).fetchall()
     return jsonify([{"topic": row["topic"], "questionCount": row["question_count"]} for row in rows])
 
@@ -376,6 +421,32 @@ def api_questions():
             f"SELECT * FROM questions WHERE {where_clause} ORDER BY RANDOM() LIMIT ?", (*parameters, limit)
         ).fetchall()
     return jsonify([serialize_question(row) for row in rows])
+
+
+@app.get("/api/exam-simulation")
+def api_exam_simulation():
+    """สร้างชุดจำลองตามสัดส่วนในหลักเกณฑ์สอบ โดยเรียงจรรยาบรรณไว้ก่อน."""
+    database = get_database()
+    sections: list[dict] = []
+    section_counts: list[dict] = []
+    for label, topic, required, first_id, last_id in SIMULATION_SECTIONS:
+        filters = ["is_active=1", "status='published'", "topic=?"]
+        parameters: list[object] = [topic]
+        if first_id is not None and last_id is not None:
+            filters.append("id BETWEEN ? AND ?")
+            parameters.extend((first_id, last_id))
+        rows = database.execute(
+            f"SELECT * FROM questions WHERE {' AND '.join(filters)} ORDER BY RANDOM() LIMIT ?",
+            (*parameters, required),
+        ).fetchall()
+        if len(rows) < required:
+            return jsonify({"error": f"คลังหมวด {label} มีไม่ครบ {required} ข้อ"}), 409
+        sections.extend(serialize_question(row) for row in rows)
+        section_counts.append({"label": label, "questionCount": required})
+    return jsonify({"questions": sections, "sections": section_counts, "durationSeconds": 0,
+                    "totalPoints": 100, "ethicsTopic": ETHICS_TOPIC,
+                    "ethicsQuestions": 20, "ethicsPassCorrect": 14,
+                    "ethicsPointPerQuestion": 1, "otherPointPerQuestion": 2, "otherPassPoints": 48})
 
 
 @app.post("/api/users")

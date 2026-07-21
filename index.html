@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="เว็บฝึกทำข้อสอบนายหน้าประกันวินาศภัย หมวด พ.ร.บ. รถยนต์และประกันภัยรถยนต์ภาคสมัครใจ">
+  <meta name="description" content="เว็บฝึกทำข้อสอบตัวแทนประกันวินาศภัย เน้นจรรยาบรรณและจำลองสอบตามหลักเกณฑ์">
   <meta name="theme-color" content="#083344">
   <title>MITTARE Exam Coach | ติวสอบประกันวินาศภัย</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,13 +32,15 @@
         <div class="team-label"><span>ทีม MT4</span> พลังความรู้ สู่ความสำเร็จ</div>
         <span class="eyebrow">หลักสูตรเร่งรัดสำหรับทีมงานมิตรแท้</span>
         <h1>ติวเข้มให้จำแม่น<br><em>พร้อมสอบอย่างมั่นใจ</em></h1>
-        <p>เน้นหัวข้อที่มักสับสนในหมวด พ.ร.บ. รถยนต์และประกันภัยรถยนต์ภาคสมัครใจ พร้อมเฉลยอธิบายทุกข้อ</p>
+        <p>เริ่มจากหมวดจรรยาบรรณตัวแทนประกันวินาศภัยจากเอกสารฝึกอบรม แล้วค่อยทบทวนหมวดอื่น พร้อมโหมดจำลองตามสัดส่วนการสอบจริง</p>
         <div class="hero-actions">
-          <button class="primary-button" id="start-exam" type="button">เริ่มทำข้อสอบ</button>
+          <button class="primary-button" id="start-exam" type="button">ฝึกหมวดที่เลือก</button>
+          <button class="simulation-button" id="start-simulation" type="button">จำลองสอบจริง 60 ข้อ</button>
           <button class="secondary-button" id="start-flashcards" type="button">ทบทวน Flashcards</button>
         </div>
         <label class="topic-picker" for="exam-topic"><span>เลือกหมวดที่ต้องการฝึก</span><select id="exam-topic"><option value="">ทุกหมวด (สุ่มรวม)</option></select></label>
-        <p class="microcopy">สุ่มสูงสุด 20 ข้อจากคลัง <span id="question-bank-count">120</span> ข้อ • ลดข้อซ้ำจากรอบล่าสุด</p>
+        <p class="microcopy">โหมดฝึกสุ่มสูงสุด 20 ข้อจากคลัง <span id="question-bank-count">120</span> ข้อ • จรรยาบรรณแสดงเป็นหมวดแรก</p>
+        <aside class="exam-criteria" aria-label="หลักเกณฑ์โหมดจำลองสอบ"><strong>เกณฑ์จำลองสอบตามเอกสาร</strong><span>จรรยาบรรณ 20 ข้อ ต้องได้อย่างน้อย 14/20 คะแนน</span><span>วิชาอื่นข้อ 21-60 ต้องได้อย่างน้อย 48/80 คะแนน</span><span>ต้องผ่านทั้งสองส่วน • หมวดเฉพาะ 5 หมวด หมวดละ 4 ข้อ</span></aside>
         <p class="source-notice">แนวข้อสอบเรียบเรียงตามหมวดหลักสูตร คปภ. ไม่ใช่คลังข้อสอบเก่าที่ คปภ. รับรองหรือเผยแพร่อย่างเป็นทางการ</p>
       </div>
       <div class="score-card" aria-label="สถิติการฝึกของคุณ">
@@ -101,7 +103,7 @@
       <div class="result-summary">
         <span class="eyebrow">ผลการทำข้อสอบ</span><h2 id="result-title">ทำได้ดีมาก!</h2>
         <div class="result-score"><strong id="result-score">0</strong><span id="result-total">/ 20 ข้อ</span></div>
-        <p id="result-message"></p>
+        <p id="result-message"></p><div id="result-criteria" class="result-criteria" hidden></div>
         <div class="result-actions"><button class="primary-button" id="retry-exam" type="button">สุ่มชุดใหม่</button><button class="secondary-button" id="back-home" type="button">กลับหน้าหลัก</button></div>
       </div>
       <div class="review-header"><h2>เฉลยและคำอธิบาย</h2><div class="review-filters" role="group" aria-label="กรองเฉลย"><button class="filter-button active" data-filter="all" type="button">ทั้งหมด</button><button class="filter-button" data-filter="wrong" type="button">ข้อที่ตอบผิด</button></div></div>
