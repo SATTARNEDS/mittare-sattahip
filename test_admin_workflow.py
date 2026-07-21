@@ -110,6 +110,33 @@ class AdminWorkflowTest(unittest.TestCase):
         response = self.client.post("/api/admin/questions/1/pause")
         self.assertEqual(response.status_code, 403)
 
+    def test_environment_can_reset_existing_admin_password_and_unlock_login(self) -> None:
+        new_password = "Reset-Test-Password-456"
+        database = server.sqlite3.connect(server.DATABASE_PATH)
+        database.execute(
+            "INSERT OR REPLACE INTO login_throttle(throttle_key, failure_count, blocked_until, updated_at) VALUES (?, ?, ?, ?)",
+            ("127.0.0.1|testadmin", 5, 9999999999, server.utc_now()),
+        )
+        database.commit()
+        database.close()
+        os.environ["RESET_ADMIN_PASSWORD"] = "1"
+        os.environ["ADMIN_PASSWORD"] = new_password
+        try:
+            with server.app.app_context():
+                server.initialize_database()
+            reset_client = server.app.test_client()
+            login = reset_client.post(
+                "/api/admin/login", json={"username": "testadmin", "password": new_password}
+            )
+            self.assertEqual(login.status_code, 200)
+        finally:
+            os.environ["RESET_ADMIN_PASSWORD"] = "0"
+            os.environ["ADMIN_PASSWORD"] = "Strong-Test-Password-123"
+            with server.app.app_context():
+                os.environ["RESET_ADMIN_PASSWORD"] = "1"
+                server.initialize_database()
+                os.environ["RESET_ADMIN_PASSWORD"] = "0"
+
     def test_head_cannot_publish(self) -> None:
         created = self.client.post(
             "/api/admin/users",

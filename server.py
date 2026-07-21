@@ -263,7 +263,20 @@ def initialize_database() -> None:
     bootstrap_password = os.environ.get("ADMIN_PASSWORD", "")
     if bootstrap_username and len(bootstrap_password) >= 12:
         existing_admin = database.execute("SELECT id FROM admin_users LIMIT 1").fetchone()
-        if existing_admin is None:
+        reset_requested = os.environ.get("RESET_ADMIN_PASSWORD", "0") == "1"
+        reset_target = database.execute(
+            "SELECT id FROM admin_users WHERE username=?", (bootstrap_username,)
+        ).fetchone()
+        if reset_requested and reset_target is not None:
+            database.execute(
+                "UPDATE admin_users SET password_hash=?, is_active=1, updated_at=? WHERE id=?",
+                (generate_password_hash(bootstrap_password), utc_now(), reset_target["id"]),
+            )
+            database.execute(
+                "DELETE FROM login_throttle WHERE throttle_key LIKE ?",
+                (f"%|{bootstrap_username.casefold()}",),
+            )
+        elif existing_admin is None:
             database.execute(
                 "INSERT INTO admin_users(username, password_hash, display_name, role) VALUES (?, ?, ?, 'admin')",
                 (bootstrap_username, generate_password_hash(bootstrap_password), "ผู้ดูแลระบบ MT4"),
