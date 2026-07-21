@@ -97,7 +97,38 @@ function updateDashboard() {
   $("attempt-count").textContent = `${state.attempts} รอบ`;
   $("answered-count").textContent = `${state.answered} ข้อ`;
   $("best-score-ring").style.setProperty("--score", `${state.best}%`);
-  $("current-user-name").textContent = state.user?.displayName || "ลงชื่อเข้าใช้";
+  $("current-user-name").textContent = state.user?.displayName || "เข้าสู่ระบบ / สมัครสมาชิก";
+}
+
+function switchMemberTab(mode) {
+  const isLogin = mode === "login";
+  $("member-login-form").hidden = !isLogin;
+  $("user-form").hidden = isLogin;
+  $("login-tab").classList.toggle("active", isLogin);
+  $("register-tab").classList.toggle("active", !isLogin);
+  $("login-tab").setAttribute("aria-selected", String(isLogin));
+  $("register-tab").setAttribute("aria-selected", String(!isLogin));
+  $(isLogin ? "login-username" : "display-name").focus();
+}
+
+function saveMember(result) {
+  const summary = result.summary || {};
+  const current = getState();
+  saveState({
+    user: {...result.user, token:result.token},
+    attempts:Number(summary.attempts ?? current.attempts),
+    answered:Number(summary.attempts ?? current.attempts) * EXAM_SIZE,
+    best:Number(summary.best_score ?? current.best),
+  });
+  updateDashboard();
+}
+
+async function restoreMemberSession() {
+  try {
+    const response = await fetch("/exam/api/members/me", {credentials:"same-origin"});
+    if (!response.ok) return;
+    saveMember(await response.json());
+  } catch (error) { console.warn("ตรวจสอบสมาชิกไม่สำเร็จ", error); }
 }
 
 function showView(name) {
@@ -343,17 +374,44 @@ async function loadLeaderboard() {
 
 async function registerUser(event) {
   event.preventDefault();
-  const displayName = $("display-name").value.trim();
+  const form = new FormData(event.currentTarget);
   $("user-form-error").textContent = "";
   try {
-    const response = await fetch("/exam/api/users", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({displayName})});
+    const response = await fetch("/exam/api/members/register", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.fromEntries(form))});
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "ลงชื่อไม่สำเร็จ");
-    saveState({user:result});
-    updateDashboard();
+    if (!response.ok) throw new Error(result.error || "สมัครสมาชิกไม่สำเร็จ");
+    saveMember(result);
     $("user-dialog").close();
     if (pendingExamStart) { pendingExamStart = false; startExam(); }
   } catch (error) { $("user-form-error").textContent = error.message; }
+}
+
+async function loginMember(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  $("login-form-error").textContent = "";
+  try {
+    const response = await fetch("/exam/api/members/login", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.fromEntries(form))});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "เข้าสู่ระบบไม่สำเร็จ");
+    saveMember(result);
+    $("user-dialog").close();
+    if (pendingExamStart) { pendingExamStart = false; startExam(); }
+  } catch (error) { $("login-form-error").textContent = error.message; }
+}
+
+async function openMemberDialog() {
+  if (getState().user?.token) {
+    if (!window.confirm(`กำลังใช้งานในชื่อ ${getState().user.displayName}\nต้องการออกจากระบบหรือไม่?`)) return;
+    await fetch("/exam/api/members/logout", {method:"POST"});
+    saveState({user:null, attempts:0, answered:0, best:0, recentIds:[]});
+    updateDashboard();
+    return;
+  }
+  $("login-form-error").textContent = "";
+  $("user-form-error").textContent = "";
+  switchMemberTab("login");
+  $("user-dialog").showModal();
 }
 
 $("start-exam").addEventListener("click", startExam);
@@ -363,9 +421,12 @@ $("exit-exam").addEventListener("click", goHome);
 $("back-home").addEventListener("click", goHome);
 $("exit-flashcards").addEventListener("click", goHome);
 $("brand-home").addEventListener("click", (event) => {event.preventDefault(); goHome();});
-$("user-menu").addEventListener("click", () => {$("display-name").value = ""; $("user-form-error").textContent = ""; $("user-dialog").showModal();});
+$("user-menu").addEventListener("click", openMemberDialog);
 $("close-user-dialog").addEventListener("click", () => {pendingExamStart = false; $("user-dialog").close();});
 $("user-form").addEventListener("submit", registerUser);
+$("member-login-form").addEventListener("submit", loginMember);
+$("login-tab").addEventListener("click", () => switchMemberTab("login"));
+$("register-tab").addEventListener("click", () => switchMemberTab("register"));
 $("previous-question").addEventListener("click", () => {currentQuestionIndex -= 1; renderQuestion();});
 $("next-question").addEventListener("click", () => {
   if (currentQuestionIndex < examQuestions.length - 1) {currentQuestionIndex += 1; renderQuestion();} else {requestSubmission();}
@@ -395,8 +456,10 @@ const initialState = getState();
 document.documentElement.dataset.theme = initialState.theme;
 $("theme-toggle").textContent = initialState.theme === "dark" ? "☀" : "☾";
 updateDashboard();
+restoreMemberSession();
 loadTopics();
 loadLeaderboard();
 fetch("/exam/api/meta").then((response) => response.json()).then((meta) => {
   $("question-bank-count").textContent = meta.totalQuestions;
 }).catch(() => {});
+window.addEventListener("load", () => window.setTimeout(() => $("exam-loader").classList.add("is-hidden"), 350));

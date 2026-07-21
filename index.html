@@ -12,13 +12,18 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div class="exam-loader" id="exam-loader" role="status" aria-live="polite">
+    <img src="/exam/assets/team-community-logo.png" width="417" height="410" alt="">
+    <strong>มิตรแท้ ทีม MT4</strong><span>กำลังเตรียมพื้นที่ฝึกของคุณ</span><i></i>
+  </div>
   <a class="skip-link" href="#main-content">ข้ามไปยังเนื้อหา</a>
   <header class="site-header">
     <a class="brand" id="brand-home" href="/exam/" aria-label="กลับหน้าหลักระบบฝึกข้อสอบ มิตรแท้ ทีม MT4">
       <span class="brand-mark"><img src="assets/mt4-heart-logo.png" width="527" height="599" alt="โลโก้มิตรแท้ MT4"></span>
       <span><strong>มิตรแท้ ทีม MT4</strong><small>Insurance Exam Coach</small></span>
     </a>
-    <div class="header-actions"><button class="user-button" id="user-menu" type="button">👤 <span id="current-user-name">ลงชื่อเข้าใช้</span></button><button class="icon-button" id="theme-toggle" type="button" aria-label="เปลี่ยนโหมดสี" title="เปลี่ยนโหมดสี">☾</button></div>
+    <nav class="exam-main-nav" aria-label="เมนูระบบฝึกข้อสอบ"><a href="/">หน้าหลัก</a><a href="/insurance.html?category=motor">ผลิตภัณฑ์</a><a href="/customer-status.html">เช็กสถานะ</a><a class="active" href="/exam/" aria-current="page">ฝึกข้อสอบ</a></nav>
+    <div class="header-actions"><button class="user-button" id="user-menu" type="button">👤 <span id="current-user-name">เข้าสู่ระบบ / สมัครสมาชิก</span></button><button class="icon-button" id="theme-toggle" type="button" aria-label="เปลี่ยนโหมดสี" title="เปลี่ยนโหมดสี">☾</button></div>
   </header>
 
   <main id="main-content">
@@ -117,14 +122,19 @@
     <p>สื่อฝึกอบรมภายใน • ตรวจทานเนื้อหา 20 ก.ค. 2569 • ควรตรวจประกาศล่าสุดก่อนใช้อ้างอิงกับลูกค้า</p>
     <nav class="official-links" aria-label="ลิงก์บริการของสำนักงาน คปภ.">
       <a href="/">เว็บมิตรแท้สัตหีบ</a>
-      <a href="/exam/admin">ระบบจัดการคลังข้อสอบ</a>
       <a href="https://onlinewebadt2.oic.or.th/oiciiqe/" target="_blank" rel="noopener noreferrer">ระบบสอบ คปภ. <span aria-hidden="true">↗</span></a>
       <a href="https://oiceservice.oic.or.th/calculator/claims.php" target="_blank" rel="noopener noreferrer" aria-describedby="oic-calculator-note">ทดลองคำนวณสินไหม พ.ร.บ. เบื้องต้น <span aria-hidden="true">↗</span></a>
     </nav>
     <p class="external-service-note" id="oic-calculator-note"><strong>หมายเหตุ:</strong> เครื่องมือคำนวณเป็นระบบภายนอกของ คปภ. รูปแบบหน้าเว็บอาจแสดงผลไม่สมบูรณ์บนโทรศัพท์ และผลที่ได้เป็นเพียงการคำนวณเบื้องต้น ไม่ใช่การยืนยันสิทธิเรียกร้องสินไหม</p>
   </footer>
   <dialog id="confirm-dialog"><form method="dialog"><h2>ส่งคำตอบตอนนี้?</h2><p id="confirm-message"></p><div class="dialog-actions"><button class="secondary-button" value="cancel">ตรวจอีกครั้ง</button><button class="primary-button" value="confirm">ส่งคำตอบ</button></div></form></dialog>
-  <dialog id="user-dialog"><form id="user-form"><img src="assets/mt4-heart-logo.png" width="527" height="599" alt=""><h2>ลงชื่อเข้าฝึกกับทีม MT4</h2><p>ใช้ชื่อเล่นหรือชื่อที่ทีมจำได้ ผลคะแนนจะบันทึกในตารางอันดับส่วนกลาง</p><label for="display-name">ชื่อผู้ฝึก</label><input id="display-name" name="displayName" minlength="2" maxlength="40" autocomplete="name" required placeholder="เช่น คุณเอ MT4"><p class="form-error" id="user-form-error" role="alert"></p><div class="dialog-actions"><button class="secondary-button" id="close-user-dialog" type="button">ไว้ภายหลัง</button><button class="primary-button" type="submit">เริ่มใช้งาน</button></div></form></dialog>
+  <dialog class="member-dialog" id="user-dialog">
+    <div class="member-dialog__brand"><img src="/exam/assets/team-community-logo.png" width="417" height="410" alt=""><div><strong>สมาชิกทีม MT4</strong><span>เก็บผลฝึกแยกเฉพาะบัญชีของคุณ</span></div></div>
+    <div class="member-tabs" role="tablist" aria-label="เลือกรูปแบบเข้าใช้งาน"><button class="active" id="login-tab" type="button" role="tab" aria-selected="true">เข้าสู่ระบบ</button><button id="register-tab" type="button" role="tab" aria-selected="false">สมัครสมาชิก</button></div>
+    <form id="member-login-form"><label for="login-username">ชื่อผู้ใช้</label><input id="login-username" name="username" autocomplete="username" required><label for="login-password">รหัสผ่าน</label><input id="login-password" name="password" type="password" autocomplete="current-password" required><p class="form-error" id="login-form-error" role="alert"></p><button class="primary-button" type="submit">เข้าสู่พื้นที่ฝึกของฉัน</button></form>
+    <form id="user-form" hidden><label for="display-name">ชื่อที่ใช้แสดง</label><input id="display-name" name="displayName" minlength="2" maxlength="40" autocomplete="name" required placeholder="เช่น คุณเอ MT4"><label for="register-username">ชื่อผู้ใช้ภาษาอังกฤษ</label><input id="register-username" name="username" minlength="3" maxlength="30" pattern="[a-zA-Z0-9._-]+" autocomplete="username" required placeholder="เช่น ae.mt4"><label for="register-password">รหัสผ่านอย่างน้อย 8 ตัว</label><input id="register-password" name="password" type="password" minlength="8" autocomplete="new-password" required><p class="form-error" id="user-form-error" role="alert"></p><button class="primary-button" type="submit">สร้างบัญชีและเริ่มฝึก</button></form>
+    <button class="member-dialog__close" id="close-user-dialog" type="button">ปิดหน้าต่าง</button>
+  </dialog>
   <script src="app.js" defer></script>
 </body>
 </html>

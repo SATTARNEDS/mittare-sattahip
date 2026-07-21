@@ -178,6 +178,12 @@ def initialize_database() -> None:
         "approved_by": "INTEGER REFERENCES admin_users(id)",
         "published_at": "TEXT",
     })
+    ensure_columns(database, "users", {
+        "username": "TEXT COLLATE NOCASE",
+        "password_hash": "TEXT",
+        "last_login_at": "TEXT",
+    })
+    database.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL")
     database.execute(
         "UPDATE questions SET status='published', published_at=COALESCE(published_at, created_at) "
         "WHERE status IS NULL OR status=''"
@@ -389,6 +395,92 @@ def create_user():
     except sqlite3.IntegrityError:
         return jsonify({"error": "ชื่อนี้มีผู้ใช้งานแล้ว กรุณาเพิ่มชื่อเล่นหรือเลขท้าย"}), 409
     return jsonify({"id": cursor.lastrowid, "displayName": display_name, "teamName": "MT4", "token": token}), 201
+
+
+def serialize_member(user: sqlite3.Row) -> dict:
+    return {"id": user["id"], "displayName": user["display_name"], "username": user["username"], "teamName": user["team_name"]}
+
+
+@app.post("/api/members/register")
+def register_member():
+    payload = request.get_json(silent=True) or {}
+    display_name = " ".join(str(payload.get("displayName", "")).split())
+    username = str(payload.get("username", "")).strip().lower()
+    password = str(payload.get("password", ""))
+    if not 2 <= len(display_name) <= 40:
+        return jsonify({"error": "กรุณากรอกชื่อที่ใช้แสดง 2-40 ตัวอักษร"}), 400
+    if not re.fullmatch(r"[a-z0-9._-]{3,30}", username):
+        return jsonify({"error": "ชื่อผู้ใช้ใช้ a-z, 0-9, จุด ขีดกลาง หรือขีดล่าง 3-30 ตัว"}), 400
+    if len(password) < 8:
+        return jsonify({"error": "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"}), 400
+    database = get_database()
+    token = secrets.token_urlsafe(24)
+    try:
+        cursor = database.execute(
+            "INSERT INTO users(display_name, team_name, access_token, username, password_hash) VALUES (?, 'MT4', ?, ?, ?)",
+            (display_name, token, username, generate_password_hash(password)),
+        )
+        database.commit()
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "ชื่อผู้ใช้หรือชื่อที่ใช้แสดงนี้มีอยู่แล้ว"}), 409
+    session["member_user_id"] = cursor.lastrowid
+    user = database.execute("SELECT * FROM users WHERE id=?", (cursor.lastrowid,)).fetchone()
+    return jsonify({"user": serialize_member(user), "token": token}), 201
+
+
+@app.post("/api/members/login")
+def login_member():
+    payload = request.get_json(silent=True) or {}
+    username = str(payload.get("username", "")).strip().lower()
+    password = str(payload.get("password", ""))
+    database = get_database()
+    throttle_key = f"member|{request.remote_addr or 'unknown'}|{username}"[:180]
+    throttle = database.execute("SELECT * FROM login_throttle WHERE throttle_key=?", (throttle_key,)).fetchone()
+    now_epoch = int(time.time())
+    if throttle and throttle["blocked_until"] > now_epoch:
+        return jsonify({"error": "ลองเข้าสู่ระบบหลายครั้งเกินไป กรุณารอ 5 นาที"}), 429
+    user = database.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+    if user is None or not user["password_hash"] or not check_password_hash(user["password_hash"], password):
+        failures = (throttle["failure_count"] if throttle else 0) + 1
+        blocked_until = now_epoch + 300 if failures >= 5 else 0
+        database.execute(
+            """INSERT INTO login_throttle(throttle_key, failure_count, blocked_until, updated_at)
+            VALUES (?, ?, ?, ?) ON CONFLICT(throttle_key) DO UPDATE SET
+            failure_count=excluded.failure_count, blocked_until=excluded.blocked_until, updated_at=excluded.updated_at""",
+            (throttle_key, failures, blocked_until, utc_now()),
+        )
+        database.commit()
+        return jsonify({"error": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"}), 401
+    database.execute("DELETE FROM login_throttle WHERE throttle_key=?", (throttle_key,))
+    database.execute("UPDATE users SET last_login_at=? WHERE id=?", (utc_now(), user["id"]))
+    database.commit()
+    session["member_user_id"] = user["id"]
+    return jsonify({"user": serialize_member(user), "token": user["access_token"]})
+
+
+@app.get("/api/members/me")
+def current_member():
+    member_id = session.get("member_user_id")
+    if not member_id:
+        return jsonify({"error": "ยังไม่ได้เข้าสู่ระบบ"}), 401
+    database = get_database()
+    user = database.execute("SELECT * FROM users WHERE id=?", (member_id,)).fetchone()
+    if user is None:
+        session.pop("member_user_id", None)
+        return jsonify({"error": "ไม่พบบัญชีสมาชิก"}), 401
+    summary = database.execute(
+        """SELECT COUNT(*) AS attempts, COALESCE(MAX(ROUND(score * 100.0 / total_questions)), 0) AS best_score,
+        COALESCE(ROUND(AVG(score * 100.0 / total_questions)), 0) AS average_score
+        FROM attempts WHERE user_id=?""",
+        (member_id,),
+    ).fetchone()
+    return jsonify({"user": serialize_member(user), "token": user["access_token"], "summary": dict(summary)})
+
+
+@app.post("/api/members/logout")
+def logout_member():
+    session.pop("member_user_id", None)
+    return jsonify({"loggedOut": True})
 
 
 @app.post("/api/attempts")

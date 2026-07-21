@@ -2132,3 +2132,8 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
   .summary-price { color: #fff !important; background: #07564f !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .summary-price strong { color: #ffd91a !important; }
 }
+/* CTA ระบบฝึกข้อสอบ ใช้เขียว-เหลืองเดียวกับแบรนด์ */
+.main-nav .exam-nav-cta{background:#f4df16;color:#0d2d1e!important;border:2px solid #f4df16;border-radius:999px;padding:.62rem 1rem;font-weight:800;box-shadow:0 8px 22px rgba(244,223,22,.25)}
+.main-nav .exam-nav-cta:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(244,223,22,.34)}
+.button--exam{background:#f4df16!important;color:#0d2d1e!important;border-color:#f4df16!important;font-weight:800;box-shadow:0 12px 30px rgba(244,223,22,.3)}
+.button--exam:hover{transform:translateY(-3px);box-shadow:0 16px 34px rgba(244,223,22,.4)}
