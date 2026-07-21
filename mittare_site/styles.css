@@ -1969,6 +1969,40 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
   .cursor-glow { display: none; }
 }
 
+/* หลังบ้านมีเมนูมากกว่าหน้าเว็บทั่วไป จึงพับเมนูเร็วขึ้นบน PC/แท็บเล็ตแนวนอน */
+@media (min-width: 801px) and (max-width: 1400px) {
+  .agent-page .nav-wrap { position: relative; }
+  .agent-page .menu-toggle { display: block; margin-left: auto; }
+  .agent-page .main-nav {
+    position: absolute;
+    z-index: 60;
+    top: calc(100% + 1px);
+    right: 0;
+    display: none;
+    width: min(380px, calc(100vw - 44px));
+    max-height: calc(100dvh - 132px);
+    padding: 18px;
+    overflow-y: auto;
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: 0 0 18px 18px;
+    box-shadow: 0 20px 40px rgba(3,47,44,.16);
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .agent-page .main-nav.is-open { display: flex; }
+  .agent-page .agent-private-nav {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 0 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+  .agent-page .main-nav > a,
+  .agent-page .agent-private-nav > a { width: 100%; }
+}
+
 @media (max-width: 560px) {
   .service-bar__inner { min-height: 42px; }
   .service-bar p { max-width: 190px; line-height: 1.2; }
