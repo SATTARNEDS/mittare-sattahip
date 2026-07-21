@@ -1,7 +1,8 @@
 "use strict";
 
-const state = { user: null, csrfToken: "", questions: [] };
+const state = { user: null, csrfToken: "", questions: [], topics: [], page: 1, pagination: null };
 const statusLabels = { draft: "ฉบับร่าง", pending: "รอตรวจ", published: "เผยแพร่", paused: "ระงับ" };
+const audienceLabels = { agent: "ตัวแทน", general: "ความรู้ทั่วไป", broker: "นายหน้า" };
 const actionLabels = { created: "สร้าง", updated: "แก้ไข", submitted: "ส่งตรวจ", published: "เผยแพร่", rejected: "ส่งกลับแก้ไข", paused: "ระงับ", restored: "กู้คืน" };
 const loginView = document.getElementById("login-view");
 const adminView = document.getElementById("admin-view");
@@ -76,7 +77,7 @@ document.getElementById("logout-button").addEventListener("click", async () => {
 
 async function loadDashboard() {
   const data = await api("/exam/api/admin/dashboard");
-  ["total", "draft", "pending", "published", "paused"].forEach(key => {
+  ["total", "draft", "pending", "published", "paused", "agent", "general", "broker"].forEach(key => {
     document.getElementById(`stat-${key}`).textContent = data[key] || 0;
   });
 }
@@ -85,11 +86,21 @@ async function loadQuestions() {
   const parameters = new URLSearchParams();
   const search = document.getElementById("search-input").value.trim();
   const status = document.getElementById("status-filter").value;
+  const audience = document.getElementById("audience-filter").value;
+  const topic = document.getElementById("topic-filter").value;
+  const perPage = document.getElementById("per-page").value;
   if (search) parameters.set("search", search);
   if (status) parameters.set("status", status);
-  state.questions = await api(`/exam/api/admin/questions?${parameters}`);
+  if (audience) parameters.set("audience", audience);
+  if (topic) parameters.set("topic", topic);
+  parameters.set("page", state.page);
+  parameters.set("perPage", perPage);
+  const data = await api(`/exam/api/admin/questions?${parameters}`);
+  state.questions = data.items;
+  state.pagination = data.pagination;
+  state.page = data.pagination.page;
   renderQuestions();
-  renderTopicList();
+  renderPagination();
 }
 
 function renderQuestions() {
@@ -100,14 +111,35 @@ function renderQuestions() {
     if (question.status === "pending" && state.user.role === "admin") actions.push(`<button class="action-button" data-action="publish" data-id="${question.id}">อนุมัติ</button>`, `<button class="action-button danger" data-action="reject" data-id="${question.id}">ส่งกลับ</button>`);
     if (question.status === "published" && state.user.role === "admin") actions.push(`<button class="action-button danger" data-action="pause" data-id="${question.id}">ระงับ</button>`);
     if (question.status === "paused" && state.user.role === "admin") actions.push(`<button class="action-button" data-action="restore" data-id="${question.id}">กู้คืน</button>`);
-    return `<tr><td>${question.id}</td><td class="question-cell"><strong>${escapeHtml(question.q)}</strong><small>เฉลย: ${escapeHtml(question.a)}</small></td><td>${escapeHtml(question.topic)}</td><td><span class="badge badge-${question.status}">${statusLabels[question.status]}</span></td><td>${escapeHtml(formatDate(question.updatedAt))}</td><td><div class="row-actions">${actions.join("")}</div></td></tr>`;
+    return `<tr><td>${question.id}</td><td class="question-cell"><strong>${escapeHtml(question.q)}</strong><small>เฉลย: ${escapeHtml(question.a)}</small></td><td><span class="audience-tag audience-${question.audience}">${audienceLabels[question.audience] || escapeHtml(question.audience)}</span></td><td>${escapeHtml(question.topic)}</td><td><span class="badge badge-${question.status}">${statusLabels[question.status]}</span></td><td>${escapeHtml(formatDate(question.updatedAt))}</td><td><div class="row-actions">${actions.join("")}</div></td></tr>`;
   }).join("");
   document.getElementById("questions-empty").hidden = state.questions.length > 0;
 }
 
-function renderTopicList() {
-  const topics = [...new Set(state.questions.map(question => question.topic))].sort();
+async function loadTopics() {
+  const parameters = new URLSearchParams();
+  const audience = document.getElementById("audience-filter").value;
+  const status = document.getElementById("status-filter").value;
+  if (audience) parameters.set("audience", audience);
+  if (status) parameters.set("status", status);
+  state.topics = await api(`/exam/api/admin/topics?${parameters}`);
+  const topics = state.topics.map(item => item.topic);
   document.getElementById("topic-list").innerHTML = topics.map(topic => `<option value="${escapeHtml(topic)}"></option>`).join("");
+  const filter = document.getElementById("topic-filter");
+  const selected = filter.value;
+  filter.innerHTML = `<option value="">ทุกหมวด</option>${state.topics.map(item => `<option value="${escapeHtml(item.topic)}">${escapeHtml(item.topic)} (${item.questionCount})</option>`).join("")}`;
+  filter.value = topics.includes(selected) ? selected : "";
+}
+
+function renderPagination() {
+  const pagination = state.pagination;
+  if (!pagination) return;
+  const first = pagination.totalItems ? ((pagination.page - 1) * pagination.perPage) + 1 : 0;
+  const last = Math.min(pagination.page * pagination.perPage, pagination.totalItems);
+  document.getElementById("pagination-summary").textContent = pagination.totalItems ? `แสดง ${first}–${last} จาก ${pagination.totalItems} ข้อ` : "0 รายการ";
+  document.getElementById("page-indicator").textContent = `หน้า ${pagination.page} / ${pagination.totalPages}`;
+  document.getElementById("previous-page").disabled = !pagination.hasPrevious;
+  document.getElementById("next-page").disabled = !pagination.hasNext;
 }
 
 function formatDate(value) {
@@ -116,11 +148,20 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("th-TH", { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
-async function refreshWorkspace() { await Promise.all([loadDashboard(), loadQuestions()]); }
+async function refreshWorkspace() {
+  await Promise.all([loadDashboard(), loadTopics()]);
+  await loadQuestions();
+}
 document.getElementById("refresh-button").addEventListener("click", refreshWorkspace);
-document.getElementById("status-filter").addEventListener("change", loadQuestions);
+async function applyBankFilters() { state.page = 1; await loadTopics(); await loadQuestions(); }
+document.getElementById("status-filter").addEventListener("change", applyBankFilters);
+document.getElementById("audience-filter").addEventListener("change", applyBankFilters);
+document.getElementById("topic-filter").addEventListener("change", () => { state.page = 1; loadQuestions(); });
+document.getElementById("per-page").addEventListener("change", () => { state.page = 1; loadQuestions(); });
+document.getElementById("previous-page").addEventListener("click", () => { if (state.pagination?.hasPrevious) { state.page -= 1; loadQuestions(); } });
+document.getElementById("next-page").addEventListener("click", () => { if (state.pagination?.hasNext) { state.page += 1; loadQuestions(); } });
 let searchTimer;
-document.getElementById("search-input").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadQuestions, 300); });
+document.getElementById("search-input").addEventListener("input", () => { clearTimeout(searchTimer); state.page = 1; searchTimer = setTimeout(loadQuestions, 300); });
 
 function buildOptions(options = ["", "", "", ""], answer = "") {
   document.getElementById("options-editor").innerHTML = options.map((option, index) => `<label class="option-row"><input type="radio" name="correctIndex" value="${index}" ${option === answer ? "checked" : ""} required><input name="option${index}" value="${escapeHtml(option)}" required maxlength="500" aria-label="ตัวเลือก ${index + 1}"></label>`).join("");
@@ -129,6 +170,7 @@ function buildOptions(options = ["", "", "", ""], answer = "") {
 function openQuestionEditor(question = null) {
   questionForm.reset();
   questionForm.elements.id.value = question?.id || "";
+  questionForm.elements.audience.value = question?.audience || "agent";
   questionForm.elements.topic.value = question?.topic || "";
   questionForm.elements.q.value = question?.q || "";
   questionForm.elements.e.value = question?.e || "";
@@ -153,7 +195,7 @@ questionForm.addEventListener("submit", async event => {
   const form = new FormData(questionForm);
   const options = [0, 1, 2, 3].map(index => String(form.get(`option${index}`) || ""));
   const correctIndex = Number(form.get("correctIndex"));
-  const payload = { topic: form.get("topic"), q: form.get("q"), e: form.get("e"), o: options, a: options[correctIndex], difficulty: form.get("difficulty"), examFrequency: form.get("examFrequency"), sourceTitle: form.get("sourceTitle"), sourceUrl: form.get("sourceUrl"), verifiedAt: form.get("verifiedAt") };
+  const payload = { audience: form.get("audience"), topic: form.get("topic"), q: form.get("q"), e: form.get("e"), o: options, a: options[correctIndex], difficulty: form.get("difficulty"), examFrequency: form.get("examFrequency"), sourceTitle: form.get("sourceTitle"), sourceUrl: form.get("sourceUrl"), verifiedAt: form.get("verifiedAt") };
   const id = form.get("id");
   try {
     await api(id ? `/exam/api/admin/questions/${id}` : "/exam/api/admin/questions", { method: id ? "PUT" : "POST", body: payload });

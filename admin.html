@@ -42,6 +42,9 @@
         <article><span>รอตรวจ</span><strong id="stat-pending">0</strong></article>
         <article><span>เผยแพร่</span><strong id="stat-published">0</strong></article>
         <article><span>ระงับ</span><strong id="stat-paused">0</strong></article>
+        <article class="stat-agent"><span>ตัวแทน</span><strong id="stat-agent">0</strong></article>
+        <article><span>ความรู้ทั่วไป</span><strong id="stat-general">0</strong></article>
+        <article class="stat-broker"><span>นายหน้า (พักไว้)</span><strong id="stat-broker">0</strong></article>
       </section>
 
       <nav class="workspace-tabs" aria-label="ส่วนจัดการ">
@@ -54,10 +57,19 @@
         <div class="filters">
           <input id="search-input" type="search" placeholder="ค้นหาคำถามหรือคำอธิบาย" aria-label="ค้นหาข้อสอบ">
           <select id="status-filter" aria-label="กรองสถานะ"><option value="">ทุกสถานะ</option><option value="draft">ฉบับร่าง</option><option value="pending">รอตรวจ</option><option value="published">เผยแพร่</option><option value="paused">ระงับ</option></select>
+          <select id="audience-filter" aria-label="กรองประเภทคลัง"><option value="">ทุกประเภทคลัง</option><option value="agent">ตัวแทน</option><option value="general">ความรู้ทั่วไป</option><option value="broker">นายหน้า</option></select>
+          <select id="topic-filter" aria-label="กรองหมวด"><option value="">ทุกหมวด</option></select>
           <button class="secondary" id="refresh-button" type="button">รีเฟรช</button>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>ข้อ</th><th>คำถาม</th><th>หมวด</th><th>สถานะ</th><th>แก้ล่าสุด</th><th><span class="sr-only">คำสั่ง</span></th></tr></thead><tbody id="questions-body"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>ข้อ</th><th>คำถาม</th><th>ประเภท</th><th>หมวด</th><th>สถานะ</th><th>แก้ล่าสุด</th><th><span class="sr-only">คำสั่ง</span></th></tr></thead><tbody id="questions-body"></tbody></table></div>
         <p class="empty" id="questions-empty" hidden>ไม่พบข้อสอบตามเงื่อนไข</p>
+        <nav class="pagination" aria-label="เปลี่ยนหน้ารายการข้อสอบ">
+          <span id="pagination-summary">0 รายการ</span>
+          <label>แสดงต่อหน้า<select id="per-page"><option value="10">10</option><option value="25" selected>25</option><option value="50">50</option><option value="100">100</option></select></label>
+          <button class="secondary" id="previous-page" type="button">← ก่อนหน้า</button>
+          <strong id="page-indicator">หน้า 1 / 1</strong>
+          <button class="secondary" id="next-page" type="button">ถัดไป →</button>
+        </nav>
       </section>
 
       <section id="users-panel" class="panel" hidden>
@@ -76,6 +88,7 @@
       <div class="dialog-header"><div><p class="eyebrow">QUESTION EDITOR</p><h2 id="question-dialog-title">เพิ่มข้อสอบ</h2></div><button class="icon-button" id="close-dialog" type="button" aria-label="ปิด">×</button></div>
       <input name="id" type="hidden">
       <div class="form-grid">
+        <label>ประเภทคลัง<select name="audience" required><option value="agent">ตัวแทนประกันวินาศภัย</option><option value="general">ความรู้ทั่วไป</option><option value="broker">นายหน้าประกันวินาศภัย</option></select></label>
         <label>หมวดข้อสอบ<input name="topic" required maxlength="100" list="topic-list"></label>
         <label>ระดับความยาก<select name="difficulty"><option value="easy">ง่าย</option><option value="medium">ปานกลาง</option><option value="hard">ยาก</option></select></label>
         <label>ความถี่ที่คาดว่าออกสอบ<select name="examFrequency"><option value="high">ออกบ่อย</option><option value="medium">ปานกลาง</option><option value="low">เสริมความรู้</option></select></label>

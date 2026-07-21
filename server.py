@@ -32,6 +32,7 @@ app.config.update(
 )
 
 QUESTION_STATUSES = {"draft", "pending", "published", "paused"}
+QUESTION_AUDIENCES = {"agent", "broker", "general"}
 PDF_SOURCE_TITLE = "แนวข้อสอบนายหน้าประกันภัย 2567 ได้จากแหววมา.pdf (หัวเอกสารระบุอัปเดต 2565)"
 AGENT_PDF_SOURCE_TITLE = "รวมสอบตัวแทน.pdf หน้า 5-18"
 ETHICS_TOPIC = "จรรยาบรรณและศีลธรรมของตัวแทนประกันวินาศภัย"
@@ -190,6 +191,7 @@ def initialize_database() -> None:
         "created_by": "INTEGER REFERENCES admin_users(id)",
         "approved_by": "INTEGER REFERENCES admin_users(id)",
         "published_at": "TEXT",
+        "audience": "TEXT NOT NULL DEFAULT 'general'",
     })
     ensure_columns(database, "users", {
         "username": "TEXT COLLATE NOCASE",
@@ -251,6 +253,12 @@ def initialize_database() -> None:
     database.execute(
         "UPDATE questions SET is_active=0, status='paused' WHERE id IN (3025, 3034, 3037, 3040)"
     )
+    database.execute("UPDATE questions SET audience='broker' WHERE topic LIKE '%นายหน้า%'")
+    database.execute(
+        "UPDATE questions SET audience='agent' WHERE topic LIKE '%ตัวแทน%' OR source_title=?",
+        (AGENT_PDF_SOURCE_TITLE,),
+    )
+    database.execute("CREATE INDEX IF NOT EXISTS idx_questions_audience_status ON questions(audience, status, is_active)")
     bootstrap_username = os.environ.get("ADMIN_USERNAME", "").strip()
     bootstrap_password = os.environ.get("ADMIN_PASSWORD", "")
     if bootstrap_username and len(bootstrap_password) >= 12:
@@ -274,6 +282,7 @@ def serialize_admin_question(row: sqlite3.Row) -> dict:
     question = serialize_question(row)
     question.update({
         "status": row["status"], "isActive": bool(row["is_active"]),
+        "audience": row["audience"],
         "difficulty": row["difficulty"], "examFrequency": row["exam_frequency"],
         "sourceTitle": row["source_title"], "sourceUrl": row["source_url"],
         "verifiedAt": row["verified_at"], "createdAt": row["created_at"],
@@ -346,17 +355,20 @@ def validate_question_payload(payload: dict) -> tuple[dict | None, str | None]:
     explanation = " ".join(str(payload.get("e", "")).split())[:2000]
     options = [" ".join(str(value).split())[:500] for value in payload.get("o", [])]
     answer = " ".join(str(payload.get("a", "")).split())[:500]
+    audience = str(payload.get("audience", "agent")).strip()
     if not topic or len(question) < 10 or len(explanation) < 10:
         return None, "กรุณากรอกหมวด คำถาม และคำอธิบายให้ครบถ้วน"
     if len(options) != 4 or any(not option for option in options) or len(set(options)) != 4:
         return None, "ต้องมีตัวเลือกที่ไม่ซ้ำกันครบ 4 ตัวเลือก"
     if options.count(answer) != 1:
         return None, "กรุณาเลือกคำตอบที่ถูกต้องจากตัวเลือกเพียงหนึ่งข้อ"
+    if audience not in QUESTION_AUDIENCES:
+        return None, "ประเภทคลังข้อสอบไม่ถูกต้อง"
     source_url = str(payload.get("sourceUrl", "")).strip()[:1000]
     if source_url and not re.match(r"^https://", source_url, re.IGNORECASE):
         return None, "ลิงก์อ้างอิงต้องขึ้นต้นด้วย https://"
     return {
-        "topic": topic, "q": question, "e": explanation, "o": options, "a": answer,
+        "topic": topic, "q": question, "e": explanation, "o": options, "a": answer, "audience": audience,
         "difficulty": str(payload.get("difficulty", "medium")) if payload.get("difficulty") in {"easy", "medium", "hard"} else "medium",
         "examFrequency": str(payload.get("examFrequency", "medium")) if payload.get("examFrequency") in {"high", "medium", "low"} else "medium",
         "sourceTitle": " ".join(str(payload.get("sourceTitle", "")).split())[:300],
@@ -368,7 +380,8 @@ def validate_question_payload(payload: dict) -> tuple[dict | None, str | None]:
 @app.get("/api/meta")
 def api_meta():
     row = get_database().execute(
-        "SELECT COUNT(*) AS total, COUNT(DISTINCT topic) AS topics FROM questions WHERE is_active=1 AND status='published'"
+        "SELECT COUNT(*) AS total, COUNT(DISTINCT topic) AS topics FROM questions "
+        "WHERE is_active=1 AND status='published' AND audience<>'broker'"
     ).fetchone()
     return jsonify({
         "totalQuestions": row["total"], "totalTopics": row["topics"], "examSize": 20,
@@ -380,7 +393,7 @@ def api_meta():
 @app.get("/api/topics")
 def api_topics():
     rows = get_database().execute(
-        "SELECT topic, COUNT(*) AS question_count FROM questions WHERE is_active=1 AND status='published' "
+        "SELECT topic, COUNT(*) AS question_count FROM questions WHERE is_active=1 AND status='published' AND audience<>'broker' "
         "GROUP BY topic ORDER BY CASE WHEN topic=? THEN 0 ELSE 1 END, topic",
         (ETHICS_TOPIC,),
     ).fetchall()
@@ -403,7 +416,7 @@ def api_questions():
     excluded = [int(value) for value in request.args.get("exclude", "").split(",") if value.isdigit()][:100]
     selected_topic = request.args.get("topic", "").strip()
     database = get_database()
-    filters = ["is_active=1", "status='published'"]
+    filters = ["is_active=1", "status='published'", "audience<>'broker'"]
     parameters: list[object] = []
     if selected_topic:
         filters.append("topic=?")
@@ -697,6 +710,10 @@ def admin_dashboard():
         "SELECT status, COUNT(*) AS count FROM questions GROUP BY status"
     ).fetchall()}
     counts["total"] = sum(counts.values())
+    for audience in QUESTION_AUDIENCES:
+        counts[audience] = database.execute(
+            "SELECT COUNT(*) AS count FROM questions WHERE audience=?", (audience,)
+        ).fetchone()["count"]
     counts["admins"] = database.execute("SELECT COUNT(*) AS count FROM admin_users WHERE is_active=1").fetchone()["count"]
     return jsonify(counts)
 
@@ -711,24 +728,70 @@ LEFT JOIN admin_users approver ON approver.id=q.approved_by"""
 @require_admin()
 def admin_questions():
     status = request.args.get("status", "").strip()
+    audience = request.args.get("audience", "").strip()
     topic = request.args.get("topic", "").strip()
     search = request.args.get("search", "").strip()[:200]
+    try:
+        page = max(1, int(request.args.get("page", "1")))
+        per_page = int(request.args.get("perPage", "25"))
+    except ValueError:
+        return jsonify({"error": "page and perPage must be numbers"}), 400
+    if per_page not in {10, 25, 50, 100}:
+        return jsonify({"error": "perPage must be 10, 25, 50 or 100"}), 400
     filters = ["1=1"]
     parameters: list[object] = []
     if status in QUESTION_STATUSES:
         filters.append("q.status=?")
         parameters.append(status)
+    if audience in QUESTION_AUDIENCES:
+        filters.append("q.audience=?")
+        parameters.append(audience)
     if topic:
         filters.append("q.topic=?")
         parameters.append(topic)
     if search:
         filters.append("(q.question_text LIKE ? OR q.explanation LIKE ?)")
         parameters.extend([f"%{search}%", f"%{search}%"])
-    rows = get_database().execute(
-        f"{ADMIN_QUESTION_SELECT} WHERE {' AND '.join(filters)} ORDER BY q.updated_at DESC, q.id DESC LIMIT 500",
-        parameters,
+    database = get_database()
+    where_clause = " AND ".join(filters)
+    total_items = database.execute(
+        f"SELECT COUNT(*) AS count FROM questions q WHERE {where_clause}", parameters
+    ).fetchone()["count"]
+    total_pages = max(1, (total_items + per_page - 1) // per_page)
+    page = min(page, total_pages)
+    rows = database.execute(
+        f"{ADMIN_QUESTION_SELECT} WHERE {where_clause} "
+        "ORDER BY q.updated_at DESC, q.id DESC LIMIT ? OFFSET ?",
+        (*parameters, per_page, (page - 1) * per_page),
     ).fetchall()
-    return jsonify([serialize_admin_question(row) for row in rows])
+    return jsonify({
+        "items": [serialize_admin_question(row) for row in rows],
+        "pagination": {
+            "page": page, "perPage": per_page, "totalItems": total_items,
+            "totalPages": total_pages, "hasPrevious": page > 1, "hasNext": page < total_pages,
+        },
+    })
+
+
+@app.get("/api/admin/topics")
+@require_admin()
+def admin_topics():
+    audience = request.args.get("audience", "").strip()
+    status = request.args.get("status", "").strip()
+    filters = ["1=1"]
+    parameters: list[object] = []
+    if audience in QUESTION_AUDIENCES:
+        filters.append("audience=?")
+        parameters.append(audience)
+    if status in QUESTION_STATUSES:
+        filters.append("status=?")
+        parameters.append(status)
+    rows = get_database().execute(
+        f"SELECT topic, COUNT(*) AS question_count FROM questions WHERE {' AND '.join(filters)} "
+        "GROUP BY topic ORDER BY CASE WHEN topic=? THEN 0 ELSE 1 END, topic",
+        (*parameters, ETHICS_TOPIC),
+    ).fetchall()
+    return jsonify([{"topic": row["topic"], "questionCount": row["question_count"]} for row in rows])
 
 
 @app.get("/api/admin/questions/<int:question_id>")
@@ -754,11 +817,12 @@ def admin_create_question():
     now = utc_now()
     database.execute(
         """INSERT INTO questions(id, topic, question_text, options_json, correct_answer, explanation,
-        status, is_active, difficulty, exam_frequency, source_title, source_url, verified_at, created_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'draft', 0, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        status, is_active, difficulty, exam_frequency, source_title, source_url, verified_at, audience,
+        created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'draft', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (next_id, cleaned["topic"], cleaned["q"], json.dumps(cleaned["o"], ensure_ascii=False), cleaned["a"],
          cleaned["e"], cleaned["difficulty"], cleaned["examFrequency"], cleaned["sourceTitle"], cleaned["sourceUrl"],
-         cleaned["verifiedAt"], g.admin_user["id"], now, now),
+         cleaned["verifiedAt"], cleaned["audience"], g.admin_user["id"], now, now),
     )
     save_question_version(next_id, "created", g.admin_user["id"])
     record_audit("create", "question", next_id, {"status": "draft"})
@@ -787,11 +851,11 @@ def admin_update_question(question_id: int):
     new_status = "draft"
     database.execute(
         """UPDATE questions SET topic=?, question_text=?, options_json=?, correct_answer=?, explanation=?,
-        difficulty=?, exam_frequency=?, source_title=?, source_url=?, verified_at=?, status=?, is_active=0,
+        difficulty=?, exam_frequency=?, source_title=?, source_url=?, verified_at=?, audience=?, status=?, is_active=0,
         approved_by=NULL, published_at=NULL, updated_at=? WHERE id=?""",
         (cleaned["topic"], cleaned["q"], json.dumps(cleaned["o"], ensure_ascii=False), cleaned["a"], cleaned["e"],
          cleaned["difficulty"], cleaned["examFrequency"], cleaned["sourceTitle"], cleaned["sourceUrl"],
-         cleaned["verifiedAt"], new_status, utc_now(), question_id),
+         cleaned["verifiedAt"], cleaned["audience"], new_status, utc_now(), question_id),
     )
     save_question_version(question_id, "updated", g.admin_user["id"])
     record_audit("update", "question", question_id, {"status": new_status})
