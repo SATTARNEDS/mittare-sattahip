@@ -98,6 +98,10 @@ function updateDashboard() {
   $("answered-count").textContent = `${state.answered} ข้อ`;
   $("best-score-ring").style.setProperty("--score", `${state.best}%`);
   $("current-user-name").textContent = state.user?.displayName || "เข้าสู่ระบบ / สมัครสมาชิก";
+  $("account-menu-name").textContent = state.user?.displayName || "สมาชิก MT4";
+  $("account-menu-username").textContent = state.user?.username ? `@${state.user.username}` : "";
+  $("account-menu-attempts").textContent = `${state.attempts} รอบ`;
+  $("account-menu-best").textContent = `${state.best}%`;
 }
 
 function switchMemberTab(mode) {
@@ -402,16 +406,54 @@ async function loginMember(event) {
 
 async function openMemberDialog() {
   if (getState().user?.token) {
-    if (!window.confirm(`กำลังใช้งานในชื่อ ${getState().user.displayName}\nต้องการออกจากระบบหรือไม่?`)) return;
-    await fetch("/exam/api/members/logout", {method:"POST"});
-    saveState({user:null, attempts:0, answered:0, best:0, recentIds:[]});
-    updateDashboard();
+    const menu = $("account-menu");
+    menu.hidden = !menu.hidden;
+    $("user-menu").setAttribute("aria-expanded", String(!menu.hidden));
     return;
   }
   $("login-form-error").textContent = "";
   $("user-form-error").textContent = "";
   switchMemberTab("login");
   $("user-dialog").showModal();
+}
+
+async function logoutMember() {
+  await fetch("/exam/api/members/logout", {method:"POST"});
+  saveState({user:null, attempts:0, answered:0, best:0, recentIds:[]});
+  $("account-menu").hidden = true;
+  $("user-menu").setAttribute("aria-expanded", "false");
+  updateDashboard();
+}
+
+function openAccountDialog() {
+  const state = getState();
+  $("account-menu").hidden = true;
+  $("user-menu").setAttribute("aria-expanded", "false");
+  $("account-display-name").value = state.user?.displayName || "";
+  $("account-dialog-username").textContent = state.user?.username ? `ชื่อผู้ใช้ @${state.user.username}` : "";
+  $("account-current-password").value = "";
+  $("account-new-password").value = "";
+  $("account-form-error").textContent = "";
+  $("account-form-success").textContent = "";
+  $("account-dialog").showModal();
+}
+
+async function updateMemberAccount(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  $("account-form-error").textContent = "";
+  $("account-form-success").textContent = "";
+  try {
+    const response = await fetch("/exam/api/members/me", {method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.fromEntries(form))});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "บันทึกข้อมูลไม่สำเร็จ");
+    const state = getState();
+    saveState({user:{...state.user,...result.user}});
+    updateDashboard();
+    $("account-current-password").value = "";
+    $("account-new-password").value = "";
+    $("account-form-success").textContent = result.passwordChanged ? "บันทึกชื่อและเปลี่ยนรหัสผ่านแล้ว" : "บันทึกชื่อที่ใช้แสดงแล้ว";
+  } catch (error) { $("account-form-error").textContent = error.message; }
 }
 
 $("start-exam").addEventListener("click", startExam);
@@ -427,6 +469,16 @@ $("user-form").addEventListener("submit", registerUser);
 $("member-login-form").addEventListener("submit", loginMember);
 $("login-tab").addEventListener("click", () => switchMemberTab("login"));
 $("register-tab").addEventListener("click", () => switchMemberTab("register"));
+$("member-logout-button").addEventListener("click", logoutMember);
+$("manage-account-button").addEventListener("click", openAccountDialog);
+$("account-form").addEventListener("submit", updateMemberAccount);
+$("close-account-dialog").addEventListener("click", () => $("account-dialog").close());
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".account-menu-wrap")) {
+    $("account-menu").hidden = true;
+    $("user-menu").setAttribute("aria-expanded", "false");
+  }
+});
 $("previous-question").addEventListener("click", () => {currentQuestionIndex -= 1; renderQuestion();});
 $("next-question").addEventListener("click", () => {
   if (currentQuestionIndex < examQuestions.length - 1) {currentQuestionIndex += 1; renderQuestion();} else {requestSubmission();}

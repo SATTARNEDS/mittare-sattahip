@@ -477,6 +477,38 @@ def current_member():
     return jsonify({"user": serialize_member(user), "token": user["access_token"], "summary": dict(summary)})
 
 
+@app.put("/api/members/me")
+def update_member():
+    member_id = session.get("member_user_id")
+    if not member_id:
+        return jsonify({"error": "กรุณาเข้าสู่ระบบอีกครั้ง"}), 401
+    payload = request.get_json(silent=True) or {}
+    display_name = " ".join(str(payload.get("displayName", "")).split())
+    current_password = str(payload.get("currentPassword", ""))
+    new_password = str(payload.get("newPassword", ""))
+    if not 2 <= len(display_name) <= 40:
+        return jsonify({"error": "กรุณากรอกชื่อที่ใช้แสดง 2-40 ตัวอักษร"}), 400
+    if new_password and len(new_password) < 8:
+        return jsonify({"error": "รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร"}), 400
+    database = get_database()
+    user = database.execute("SELECT * FROM users WHERE id=?", (member_id,)).fetchone()
+    if user is None or not user["password_hash"] or not check_password_hash(user["password_hash"], current_password):
+        return jsonify({"error": "รหัสผ่านปัจจุบันไม่ถูกต้อง"}), 403
+    try:
+        if new_password:
+            database.execute(
+                "UPDATE users SET display_name=?, password_hash=? WHERE id=?",
+                (display_name, generate_password_hash(new_password), member_id),
+            )
+        else:
+            database.execute("UPDATE users SET display_name=? WHERE id=?", (display_name, member_id))
+        database.commit()
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "ชื่อที่ใช้แสดงนี้มีสมาชิกคนอื่นใช้แล้ว"}), 409
+    updated = database.execute("SELECT * FROM users WHERE id=?", (member_id,)).fetchone()
+    return jsonify({"user": serialize_member(updated), "passwordChanged": bool(new_password)})
+
+
 @app.post("/api/members/logout")
 def logout_member():
     session.pop("member_user_id", None)
