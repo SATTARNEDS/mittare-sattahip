@@ -111,7 +111,7 @@ async function fetchQuestions(limit, excludedIds = [], topic = "") {
   if (excludedIds.length) query.set("exclude", excludedIds.join(","));
   if (topic) query.set("topic", topic);
   try {
-    const response = await fetch(`/api/questions?${query}`);
+    const response = await fetch(`/exam/api/questions?${query}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
   } catch (error) {
@@ -244,7 +244,7 @@ async function saveAttemptToServer(score) {
     if (responses[item.id] === item.a) topicScores[item.topic].correct += 1;
   });
   try {
-    await fetch("/api/attempts", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:user.token,score,totalQuestions:examQuestions.length,durationSeconds:elapsedSeconds,selectedTopic:currentSelectedTopic || "ทุกหมวด",topicScores})});
+    await fetch("/exam/api/attempts", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:user.token,score,totalQuestions:examQuestions.length,durationSeconds:elapsedSeconds,selectedTopic:currentSelectedTopic || "ทุกหมวด",topicScores})});
     loadLeaderboard();
   } catch (error) { console.warn("บันทึกผลส่วนกลางไม่สำเร็จ", error); }
 }
@@ -305,7 +305,7 @@ function goHome() {
 
 async function loadTopics() {
   try {
-    const response = await fetch("/api/topics");
+    const response = await fetch("/exam/api/topics");
     const topics = await response.json();
     const select = $("exam-topic");
     topics.forEach((item) => {
@@ -319,7 +319,7 @@ async function loadTopics() {
 
 async function loadLeaderboard() {
   try {
-    const response = await fetch("/api/leaderboard");
+    const response = await fetch("/exam/api/leaderboard");
     const leaders = await response.json();
     if (!leaders.length) return;
     $("leaderboard-list").replaceChildren(...leaders.map((leader, index) => {
@@ -346,7 +346,7 @@ async function registerUser(event) {
   const displayName = $("display-name").value.trim();
   $("user-form-error").textContent = "";
   try {
-    const response = await fetch("/api/users", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({displayName})});
+    const response = await fetch("/exam/api/users", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({displayName})});
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "ลงชื่อไม่สำเร็จ");
     saveState({user:result});
@@ -397,6 +397,6 @@ $("theme-toggle").textContent = initialState.theme === "dark" ? "☀" : "☾";
 updateDashboard();
 loadTopics();
 loadLeaderboard();
-fetch("/api/meta").then((response) => response.json()).then((meta) => {
+fetch("/exam/api/meta").then((response) => response.json()).then((meta) => {
   $("question-bank-count").textContent = meta.totalQuestions;
 }).catch(() => {});

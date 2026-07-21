@@ -24,6 +24,7 @@ app = Flask(__name__, static_folder=None)
 app.config["JSON_AS_ASCII"] = False
 app.config.update(
     SECRET_KEY=os.environ.get("SECRET_KEY", secrets.token_hex(32)),
+    SESSION_COOKIE_NAME="mittare_exam_session",
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE", "1") == "1",

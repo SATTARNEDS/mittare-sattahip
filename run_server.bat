@@ -12,7 +12,7 @@ if errorlevel 1 (
 ) else (
   echo [2/3] Required package is ready.
 )
-echo [3/3] Starting MITTARE Exam Coach...
+echo [3/3] Starting Mittare Sattahip + Exam Coach...
 start "" http://127.0.0.1:5000
-".venv\Scripts\python.exe" server.py
+".venv\Scripts\python.exe" combined_app.py
 endlocal

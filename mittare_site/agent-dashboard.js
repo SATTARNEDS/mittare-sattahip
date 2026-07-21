@@ -1,0 +1,1297 @@
+(() => {
+const policyForm = document.querySelector("#agent-policy-form");
+const policyTableBody = document.querySelector("#policy-table-body");
+const policyEmpty = document.querySelector("#policy-empty");
+const policySearch = document.querySelector("#policy-search");
+const statusFilter = document.querySelector("#status-filter");
+const messageTone = document.querySelector("#message-tone");
+const generatedMessage = document.querySelector("#generated-message");
+const openLineShare = document.querySelector("#open-line-share");
+const currentAttachments = document.querySelector("#current-attachments");
+const formFeedback = document.querySelector("#form-feedback");
+const backupFeedback = document.querySelector("#backup-feedback");
+const trashList = document.querySelector("#trash-list");
+const downloadFullBackupButton = document.querySelector("#download-full-backup");
+const mainContent = document.querySelector("#main-content");
+const authSection = document.querySelector("#agent-auth");
+const loginForm = document.querySelector("#agent-login-form");
+const loginFeedback = document.querySelector("#login-feedback");
+const logoutButton = document.querySelector("#logout-button");
+const agentPrivateNav = document.querySelector("#agent-private-nav");
+const agentLoading = document.querySelector("#agent-loading");
+const productMediaForm = document.querySelector("#product-media-form");
+const productMediaPlan = document.querySelector("#product-media-plan");
+const productMediaList = document.querySelector("#product-media-list");
+const productMediaPreview = document.querySelector("#product-media-preview");
+const mediaFeedback = document.querySelector("#media-feedback");
+const pushLineMessageButton = document.querySelector("#push-line-message");
+const linePushFeedback = document.querySelector("#line-push-feedback");
+const adminLineFeedback = document.querySelector("#admin-line-feedback");
+const adminLineRecipient = document.querySelector("#admin-line-recipient");
+const sendAdminAlertButton = document.querySelector("#send-admin-alert");
+const attachmentDialog = document.querySelector("#attachment-dialog");
+const attachmentDialogTitle = document.querySelector("#attachment-dialog-title");
+const attachmentDialogViewer = document.querySelector("#attachment-dialog-viewer");
+const attachmentDialogMeta = document.querySelector("#attachment-dialog-meta");
+const attachmentDialogDownload = document.querySelector("#attachment-dialog-download");
+const careSelectedSummary = document.querySelector("#care-selected-summary");
+const documentChecklist = document.querySelector("#document-checklist");
+const documentProgressLabel = document.querySelector("#document-progress-label");
+const saveDocumentChecklistButton = document.querySelector("#save-document-checklist");
+const documentFeedback = document.querySelector("#document-feedback");
+const activityForm = document.querySelector("#activity-form");
+const activityTimeline = document.querySelector("#activity-timeline");
+const activityFeedback = document.querySelector("#activity-feedback");
+const saveActivityButton = document.querySelector("#save-activity");
+const reportStatusList = document.querySelector("#report-status-list");
+const reportAgentList = document.querySelector("#report-agent-list");
+const auditLogList = document.querySelector("#audit-log-list");
+const reportFeedback = document.querySelector("#report-feedback");
+
+let policies = [];
+let deletedPolicies = [];
+let selectedPolicyId = "";
+let productMedia = {};
+let reportOverview = null;
+let linePushConfigured = false;
+let adminLineRecipientConfigured = false;
+let adminUser = null;
+
+function setAgentLoading(isLoading, message = "กำลังเตรียมข้อมูลหลังบ้าน") {
+  if (!agentLoading) return;
+  agentLoading.hidden = !isLoading;
+  agentLoading.querySelector("strong").textContent = message;
+}
+
+const productMediaPlanOptions = [
+  ["motor-1", "รถยนต์ประเภท 1"],
+  ["motor-2", "รถยนต์ประเภท 2"],
+  ["motor-3", "รถยนต์ประเภท 3"],
+  ["motor-2plus", "รถยนต์ประเภท 2+"],
+  ["motor-3plus", "รถยนต์ประเภท 3+"],
+  ["motor-compulsory", "ประกันภัยรถยนต์ภาคบังคับ"],
+  ["motor-one", "มิตรแท้หนึ่งเดียว"],
+  ["motor-extra", "ป.1 Extra"],
+  ["motor-eco", "แผนรถเก๋ง Eco Car"],
+  ["motor-permpoon", "มิตรแท้เพิ่มพูน 2+"],
+  ["motor-taweekoon", "มิตรแท้ทวีคูณ"],
+  ["motor-permpoon3", "มิตรแท้เพิ่มพูน 3+"],
+  ["residential-fire", "อัคคีภัยที่อยู่อาศัย"],
+  ["home", "ประกันภัยบ้านมิตรแท้"],
+  ["property-risk", "ประกันภัยความเสี่ยงภัยทรัพย์สิน"],
+  ["construction", "ประกันภัยงานก่อสร้าง"],
+  ["pa1", "อุบัติเหตุส่วนบุคคล อบ.1"],
+  ["pa2", "อุบัติเหตุส่วนบุคคล อบ.2"],
+  ["income-hospital", "ชดเชยรายได้กรณีเข้ารักษา"],
+  ["golf", "ประกันภัยสำหรับผู้เล่นกอล์ฟ"],
+  ["sme", "ประกันภัยธุรกิจ SME"],
+  ["public-liability", "ประกันภัยความรับผิดต่อบุคคลภายนอก"],
+  ["carrier", "ประกันภัยความรับผิดผู้ขนส่ง"],
+  ["inland-named", "ขนส่งภายในประเทศแบบระบุภัย"],
+  ["inland-allrisk", "ขนส่งภายในประเทศแบบ All Risks"],
+  ["gold-shop", "ประกันภัยร้านทอง"],
+  ["drone", "ประกันภัยโดรน"],
+  ["fuel-station", "ประกันภัยสถานีบริการเชื้อเพลิง"],
+  ["fuel-ctp", "พ.ร.บ. รถบรรทุก LPG / NGV / น้ำมัน"]
+];
+
+const salesStatusLabels = {
+  new: "ลูกค้าใหม่",
+  quoted: "ส่งใบเสนอราคาแล้ว",
+  waiting: "รอตัดสินใจ",
+  documents: "รอเอกสาร",
+  payment: "นัดชำระ",
+  renewed: "ต่ออายุแล้ว",
+  lost: "ปิดงานไม่สำเร็จ"
+};
+
+const policyProductOptionsByCategory = {
+  "รถยนต์": [
+    "รถยนต์ประเภท 1",
+    "รถยนต์ประเภท 2",
+    "รถยนต์ประเภท 3",
+    "รถยนต์ประเภท 2+",
+    "รถยนต์ประเภท 3+",
+    "มิตรแท้หนึ่งเดียว",
+    "ป.1 Extra",
+    "แผนรถเก๋ง Eco Car",
+    "มิตรแท้เพิ่มพูน 2+",
+    "มิตรแท้ทวีคูณ",
+    "มิตรแท้เพิ่มพูน 3+"
+  ],
+  "พ.ร.บ.": [
+    "ประกันภัยรถยนต์ภาคบังคับ",
+    "พ.ร.บ. รถบรรทุก LPG / NGV / น้ำมัน"
+  ],
+  "บ้านและทรัพย์สิน": [
+    "อัคคีภัยที่อยู่อาศัย",
+    "ประกันภัยบ้านมิตรแท้",
+    "ประกันภัยความเสี่ยงภัยทรัพย์สิน",
+    "ประกันภัยงานก่อสร้าง"
+  ],
+  "อุบัติเหตุ/สุขภาพ": [
+    "อุบัติเหตุส่วนบุคคล อบ.1",
+    "อุบัติเหตุส่วนบุคคล อบ.2",
+    "ชดเชยรายได้กรณีเข้ารักษา",
+    "ประกันภัยสำหรับผู้เล่นกอล์ฟ"
+  ],
+  "ธุรกิจ": [
+    "ประกันภัยธุรกิจ SME",
+    "ประกันภัยความรับผิดต่อบุคคลภายนอก",
+    "ประกันภัยความรับผิดผู้ขนส่ง",
+    "ขนส่งภายในประเทศแบบระบุภัย",
+    "ขนส่งภายในประเทศแบบ All Risks",
+    "ประกันภัยร้านทอง"
+  ],
+  "เฉพาะทาง": [
+    "ประกันภัยโดรน",
+    "ประกันภัยสถานีบริการเชื้อเพลิง"
+  ]
+};
+
+const productMediaCategoryImages = {
+  motor: "assets/insurance-motor.png",
+  property: "assets/insurance-property.png",
+  personal: "assets/insurance-personal.png",
+  business: "assets/insurance-business.png",
+  specialty: "assets/insurance-specialty.png"
+};
+
+const productMediaCategories = {
+  "motor-1": "motor",
+  "motor-2": "motor",
+  "motor-3": "motor",
+  "motor-2plus": "motor",
+  "motor-3plus": "motor",
+  "motor-compulsory": "motor",
+  "motor-one": "motor",
+  "motor-extra": "motor",
+  "motor-eco": "motor",
+  "motor-permpoon": "motor",
+  "motor-taweekoon": "motor",
+  "motor-permpoon3": "motor",
+  "residential-fire": "property",
+  home: "property",
+  "property-risk": "property",
+  construction: "property",
+  pa1: "personal",
+  pa2: "personal",
+  "income-hospital": "personal",
+  golf: "personal",
+  sme: "business",
+  "public-liability": "business",
+  carrier: "business",
+  "inland-named": "business",
+  "inland-allrisk": "business",
+  "gold-shop": "business",
+  drone: "specialty",
+  "fuel-station": "specialty",
+  "fuel-ctp": "specialty"
+};
+
+async function apiFetch(url, options = {}) {
+  const response = await fetch(url, {
+    credentials: "same-origin",
+    ...options,
+    headers: options.body instanceof FormData
+      ? options.headers
+      : { "Content-Type": "application/json", ...(options.headers || {}) }
+  });
+  const contentType = response.headers.get("content-type") || "";
+  const payload = contentType.includes("application/json") ? await response.json() : null;
+  if (!response.ok) {
+    throw new Error(payload?.error || "เกิดข้อผิดพลาดในการเชื่อมต่อระบบ");
+  }
+  return payload;
+}
+
+async function initializeAgentDashboard() {
+  try {
+    setAgentLoading(true, "กำลังตรวจสอบสิทธิ์เข้าใช้งาน");
+    const session = await apiFetch("/api/session");
+    linePushConfigured = Boolean(session.linePushConfigured);
+    adminUser = session.adminUser || null;
+    setAuthenticated(session.authenticated);
+    if (session.authenticated) await Promise.all([refreshSettings(), refreshPolicies(), refreshReports(), refreshProductMedia()]);
+  } catch (error) {
+    loginFeedback.textContent = "กรุณารันผ่าน Flask server ด้วยคำสั่ง python app.py";
+  } finally {
+    setAgentLoading(false);
+  }
+}
+
+function setAuthenticated(isAuthenticated) {
+  authSection.hidden = isAuthenticated;
+  mainContent.hidden = !isAuthenticated;
+  agentPrivateNav.hidden = !isAuthenticated;
+  logoutButton.hidden = !isAuthenticated;
+  if (!isAuthenticated) {
+    document.body.classList.remove("agent-authenticated");
+  } else {
+    document.body.classList.add("agent-authenticated");
+  }
+}
+
+function renderAdminLineState() {
+  const isReady = Boolean(linePushConfigured && adminLineRecipientConfigured);
+  if (sendAdminAlertButton) sendAdminAlertButton.disabled = !isReady;
+  if (getSelectedPolicy()) renderMessage();
+  if (adminLineRecipient && !adminLineRecipient.textContent.trim()) {
+    adminLineRecipient.textContent = "ผู้รับแจ้งเตือนยังไม่พร้อม";
+  }
+  if (!adminLineFeedback) return;
+  if (!linePushConfigured) {
+    adminLineFeedback.textContent = "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์";
+  } else if (!adminLineRecipientConfigured) {
+    adminLineFeedback.textContent = "ยังไม่ได้ตั้งค่า ADMIN_LINE_USER_ID บนเซิร์ฟเวอร์";
+  } else {
+    adminLineFeedback.textContent = "พร้อมส่งแจ้งเตือนผ่าน LINE ให้ผู้ดูแล";
+  }
+}
+
+async function refreshSettings() {
+  const settings = await apiFetch("/api/settings");
+  adminLineRecipientConfigured = Boolean(settings.adminLineRecipientConfigured);
+  if (adminLineRecipient) {
+    adminLineRecipient.textContent = adminLineRecipientConfigured
+      ? `ผู้รับแจ้งเตือน: ${settings.adminLineUserIdMasked || "ตั้งค่าบนเซิร์ฟเวอร์แล้ว"}`
+      : "ยังไม่ได้ตั้งค่า ADMIN_LINE_USER_ID";
+  }
+  renderAdminLineState();
+}
+
+async function refreshPolicies() {
+  setAgentLoading(true, "กำลังโหลดรายการกรมธรรม์");
+  try {
+    policies = await apiFetch("/api/policies");
+    renderAll();
+  } finally {
+    setAgentLoading(false);
+  }
+}
+
+async function refreshPoliciesAndReports() {
+  await refreshPolicies();
+  await refreshReports();
+}
+
+async function refreshDeletedPolicies() {
+  deletedPolicies = await apiFetch("/api/policies/trash");
+  renderTrashList();
+}
+
+async function refreshProductMedia() {
+  if (!productMediaForm) return;
+  setAgentLoading(true, "กำลังโหลดคลังรูปและเอกสาร");
+  try {
+    productMedia = await apiFetch("/api/product-media");
+    renderProductMediaPreview();
+    renderProductMediaList();
+  } finally {
+    setAgentLoading(false);
+  }
+}
+
+async function refreshReports() {
+  try {
+    reportOverview = await apiFetch("/api/reports/overview");
+    renderReports();
+  } catch (error) {
+    if (reportFeedback) reportFeedback.textContent = error.message;
+  }
+}
+
+function formatDate(dateValue) {
+  if (!dateValue) return "-";
+  return new Intl.DateTimeFormat("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  }).format(new Date(`${dateValue}T00:00:00`));
+}
+
+function formatDateTime(dateValue) {
+  if (!dateValue) return "-";
+  return new Intl.DateTimeFormat("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(dateValue));
+}
+
+function formatCurrency(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return "-";
+  return new Intl.NumberFormat("th-TH", {
+    style: "currency",
+    currency: "THB",
+    maximumFractionDigits: 0
+  }).format(amount);
+}
+
+function formatCompactCurrency(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return "0";
+  return new Intl.NumberFormat("th-TH", {
+    notation: "compact",
+    maximumFractionDigits: 1
+  }).format(amount);
+}
+
+function daysUntil(dateValue) {
+  if (!dateValue) return Number.POSITIVE_INFINITY;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const targetDate = new Date(`${dateValue}T00:00:00`);
+  return Math.ceil((targetDate - today) / 86400000);
+}
+
+function getDueLabel(endDate) {
+  const days = daysUntil(endDate);
+  if (!Number.isFinite(days)) return "ไม่ระบุวัน";
+  if (days < 0) return `เลยกำหนด ${Math.abs(days)} วัน`;
+  if (days === 0) return "หมดอายุวันนี้";
+  return `อีก ${days} วัน`;
+}
+
+function getActivePolicies() {
+  return policies.filter((policy) => policy.salesStatus !== "renewed" && policy.salesStatus !== "lost");
+}
+
+function renderDashboard() {
+  const activePolicies = getActivePolicies();
+  const overdue = activePolicies.filter((policy) => daysUntil(policy.endDate) < 0).length;
+  const due7 = activePolicies.filter((policy) => {
+    const days = daysUntil(policy.endDate);
+    return days >= 0 && days <= 7;
+  }).length;
+  const due30 = activePolicies.filter((policy) => {
+    const days = daysUntil(policy.endDate);
+    return days >= 0 && days <= 30;
+  }).length;
+  const followup = activePolicies.filter((policy) => daysUntil(policy.nextFollowUp) <= 0).length;
+  const incompleteDocuments = activePolicies.filter((policy) => (policy.documentProgress?.missing || 0) > 0).length;
+  const activePremium = activePolicies.reduce((total, policy) => total + Number(policy.premiumAmount || 0), 0);
+  const urgentCount = overdue + due7 + followup;
+
+  setText("#stat-overdue", overdue);
+  setText("#stat-due7", due7);
+  setText("#stat-due30", due30);
+  setText("#stat-followup", followup);
+  setText("#stat-documents", incompleteDocuments);
+  setText("#stat-premium", formatCompactCurrency(activePremium));
+  setText("#hero-due-count", urgentCount);
+  setText("#hero-due-label", urgentCount ? "มีงานที่ควรติดตาม" : "ยังไม่มีงานด่วน");
+
+  const alerts = [];
+  if (overdue) alerts.push(`มีกรมธรรม์เลยกำหนด ${overdue} รายการ ควรติดต่อก่อนรายการอื่น`);
+  if (due7) alerts.push(`มีกรมธรรม์ครบกำหนดใน 7 วัน ${due7} รายการ`);
+  if (followup) alerts.push(`มีนัดติดตามวันนี้หรือเลยกำหนด ${followup} รายการ`);
+  if (incompleteDocuments) alerts.push(`มีรายการเอกสารยังไม่ครบ ${incompleteDocuments} งาน`);
+
+  const alertContainer = document.querySelector("#agent-alerts");
+  alertContainer.innerHTML = alerts.length
+    ? alerts.map((alert) => `<p><strong>แจ้งเตือนภายใน</strong>${escapeHtml(alert)}</p>`).join("")
+    : `<p><strong>แจ้งเตือนภายใน</strong>ยังไม่มีงานเร่งด่วนในวันนี้</p>`;
+}
+
+function renderReports() {
+  if (!reportOverview) {
+    setText("#report-renewal-rate", "0%");
+    setText("#report-active-count", "0");
+    setText("#report-document-missing", "0");
+    setText("#report-active-premium", "0");
+    if (reportStatusList) reportStatusList.innerHTML = "";
+    if (reportAgentList) reportAgentList.innerHTML = "";
+    if (auditLogList) auditLogList.innerHTML = "";
+    return;
+  }
+
+  const totals = reportOverview.totals || {};
+  setText("#report-renewal-rate", `${totals.renewalRate || 0}%`);
+  setText("#report-active-count", totals.active || 0);
+  setText("#report-document-missing", totals.documentsMissing || 0);
+  setText("#report-active-premium", formatCompactCurrency(totals.activePremium || 0));
+
+  if (reportStatusList) {
+    const maxStatus = Math.max(...(reportOverview.statusCounts || []).map((item) => item.count), 1);
+    reportStatusList.innerHTML = (reportOverview.statusCounts || []).length
+      ? reportOverview.statusCounts.map((item) => renderReportRow(item.label, `${item.count} งาน`, item.count / maxStatus)).join("")
+      : renderReportEmpty("ยังไม่มีสถานะงานให้สรุป");
+  }
+
+  if (reportAgentList) {
+    const maxAgent = Math.max(...(reportOverview.agentWorkload || []).map((item) => item.active), 1);
+    reportAgentList.innerHTML = (reportOverview.agentWorkload || []).length
+      ? reportOverview.agentWorkload.map((item) => renderReportRow(item.agent, `${item.active} งาน · ${formatCompactCurrency(item.premium)} บาท`, item.active / maxAgent)).join("")
+      : renderReportEmpty("ยังไม่มีผู้ดูแลในระบบ");
+  }
+
+  if (auditLogList) {
+    auditLogList.innerHTML = (reportOverview.recentAudit || []).length
+      ? reportOverview.recentAudit.map((event) => `
+        <article class="audit-log-item">
+          <span>${formatDateTime(event.createdAt)}</span>
+          <strong>${escapeHtml(event.summary)}</strong>
+          <small>${escapeHtml(event.action)} · ${escapeHtml(event.actor || "admin")}</small>
+        </article>
+      `).join("")
+      : renderReportEmpty("ยังไม่มีประวัติการแก้ไขสำคัญ");
+  }
+}
+
+function renderTrashList() {
+  if (!trashList) return;
+  trashList.innerHTML = deletedPolicies.length
+    ? deletedPolicies.map((policy) => `
+      <article class="trash-item">
+        <div>
+          <strong>${escapeHtml(policy.customerName)} · ${escapeHtml(policy.policyNumber || policy.publicRef)}</strong>
+          <span>${escapeHtml(policy.insuranceCategory)}${policy.productName ? ` / ${escapeHtml(policy.productName)}` : ""}</span>
+          <small>ลบเมื่อ ${formatDateTime(policy.deletedAt)} โดย ${escapeHtml(policy.deletedBy || "-")}</small>
+        </div>
+        <div class="trash-item__actions">
+          <button type="button" data-restore-policy="${policy.id}">กู้คืน</button>
+          <button type="button" data-purge-policy="${policy.id}">ลบถาวร</button>
+        </div>
+      </article>
+    `).join("")
+    : `
+      <div class="plan-empty plan-empty--compact">
+        <strong>ยังไม่มีรายการในถังพัก</strong>
+        <span>เมื่อย้ายกรมธรรม์ออกจากตารางหลัก รายการจะมาอยู่ตรงนี้ก่อนลบถาวร</span>
+      </div>
+    `;
+}
+
+function renderReportRow(label, value, ratio) {
+  const safeRatio = Math.max(0, Math.min(1, Number(ratio) || 0));
+  return `
+    <div class="report-row">
+      <div>
+        <strong>${escapeHtml(label)}</strong>
+        <span>${escapeHtml(value)}</span>
+      </div>
+      <i style="--report-ratio: ${safeRatio}"></i>
+    </div>
+  `;
+}
+
+function renderReportEmpty(message) {
+  return `
+    <div class="plan-empty plan-empty--compact">
+      <strong>${escapeHtml(message)}</strong>
+      <span>ข้อมูลจะอัปเดตเมื่อมีการบันทึกในหลังบ้าน</span>
+    </div>
+  `;
+}
+
+function renderPolicyTable() {
+  const searchTerm = policySearch?.value.trim().toLowerCase() || "";
+  const selectedStatus = statusFilter?.value || "all";
+  const filteredPolicies = policies
+    .filter((policy) => selectedStatus === "all" || policy.salesStatus === selectedStatus)
+    .filter((policy) => {
+      const searchableText = [
+        policy.customerName,
+        policy.customerPhone,
+        policy.policyNumber,
+        policy.publicRef,
+        policy.productName,
+        policy.insuranceCategory,
+        policy.customerNotes
+      ].join(" ").toLowerCase();
+      return searchableText.includes(searchTerm);
+    })
+    .sort((a, b) => daysUntil(a.endDate) - daysUntil(b.endDate));
+
+  policyEmpty.hidden = filteredPolicies.length > 0;
+  policyTableBody.innerHTML = filteredPolicies.map((policy) => {
+    const dueDays = daysUntil(policy.endDate);
+    const urgencyClass = dueDays < 0 ? "is-overdue" : dueDays <= 7 ? "is-soon" : "";
+    const attachmentCount = policy.attachments?.length || 0;
+    const progress = policy.documentProgress || { completed: 0, total: 0, missing: 0 };
+    const progressClass = progress.missing > 0 ? "is-missing" : "is-complete";
+
+    return `
+      <tr class="${policy.id === selectedPolicyId ? "is-selected" : ""}">
+        <td>
+          <strong>${escapeHtml(policy.customerName)}</strong>
+          <span>${escapeHtml(policy.customerPhone || "-")}</span>
+          <small>อ้างอิง ${escapeHtml(policy.publicRef)}</small>
+        </td>
+        <td>
+          <strong>${escapeHtml(policy.insuranceCategory)}</strong>
+          <span>${escapeHtml(policy.productName || "ไม่ระบุแผน")}</span>
+          <small>${escapeHtml(policy.policyNumber || "ยังไม่มีเลขกรมธรรม์")} · ${attachmentCount} ไฟล์</small>
+          <small class="document-progress ${progressClass}">เอกสาร ${progress.completed}/${progress.total}</small>
+          <small>${escapeHtml(policy.assignedAgent || "ยังไม่ระบุผู้ดูแล")}</small>
+        </td>
+        <td>
+          <strong class="${urgencyClass}">${formatDate(policy.endDate)}</strong>
+          <span>${getDueLabel(policy.endDate)}</span>
+          <small>${formatCurrency(policy.premiumAmount)}</small>
+        </td>
+        <td>
+          <span class="status-pill status-pill--${escapeHtml(policy.salesStatus)}">${salesStatusLabels[policy.salesStatus] || policy.salesStatus}</span>
+        </td>
+        <td>
+          <strong>${formatDate(policy.nextFollowUp)}</strong>
+          <span>${policy.nextFollowUp ? getDueLabel(policy.nextFollowUp) : "ยังไม่ตั้งนัด"}</span>
+        </td>
+        <td>
+          <div class="agent-table-actions">
+            <button type="button" data-action="select" data-id="${policy.id}">ข้อความ</button>
+            <button type="button" data-action="care" data-id="${policy.id}">งานลูกค้า</button>
+            <button type="button" data-action="line" data-id="${policy.id}">แจ้งผู้ดูแล</button>
+            <button type="button" data-action="edit" data-id="${policy.id}">แก้ไข</button>
+            <button type="button" data-action="delete" data-id="${policy.id}">ลบ</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function setText(selector, value) {
+  const element = document.querySelector(selector);
+  if (element) element.textContent = value;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function getSelectedPolicy() {
+  return policies.find((item) => String(item.id) === String(selectedPolicyId));
+}
+
+function renderPolicyProductOptions(selectedValue = "") {
+  const category = document.querySelector("#insurance-category")?.value || "รถยนต์";
+  const productSelect = document.querySelector("#product-name");
+  if (!productSelect) return;
+  const options = policyProductOptionsByCategory[category] || [];
+  const values = selectedValue && !options.includes(selectedValue)
+    ? [selectedValue, ...options]
+    : options;
+  productSelect.innerHTML = [
+    `<option value="">เลือกแผน / ผลิตภัณฑ์</option>`,
+    ...values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+  ].join("");
+  productSelect.value = selectedValue || "";
+}
+
+function renderCurrentAttachments(policy) {
+  const attachments = policy?.attachments || [];
+  currentAttachments.hidden = !attachments.length;
+  currentAttachments.innerHTML = attachments.length
+    ? `
+      <h3>ไฟล์ที่แนบไว้</h3>
+      ${attachments.map((file) => `
+        <div class="attachment-chip">
+          <button class="attachment-chip__preview" type="button" data-view-attachment="${file.id}">${escapeHtml(file.name)}</button>
+          <span>${Math.round(file.size / 1024)} KB</span>
+          <a href="${file.url}?download=1" download>ดาวน์โหลด</a>
+          <button type="button" data-remove-attachment="${file.id}">ลบไฟล์</button>
+        </div>
+      `).join("")}
+    `
+    : "";
+}
+
+function renderCarePanel() {
+  const policy = getSelectedPolicy();
+  if (!policy) {
+    if (careSelectedSummary) {
+      careSelectedSummary.innerHTML = `
+        <strong>ยังไม่ได้เลือกกรมธรรม์</strong>
+        <span>กด “ข้อความ” หรือ “งานลูกค้า” จากตารางเพื่อโหลดงานดูแลลูกค้า</span>
+      `;
+    }
+    if (documentChecklist) {
+      documentChecklist.innerHTML = `
+        <div class="plan-empty plan-empty--compact">
+          <strong>ยังไม่มี Checklist ให้แก้ไข</strong>
+          <span>เลือกกรมธรรม์ก่อนเพื่อดูรายการเอกสารที่ต้องติดตาม</span>
+        </div>
+      `;
+    }
+    if (activityTimeline) activityTimeline.innerHTML = "";
+    if (documentProgressLabel) documentProgressLabel.textContent = "0/0";
+    if (saveDocumentChecklistButton) saveDocumentChecklistButton.disabled = true;
+    if (saveActivityButton) saveActivityButton.disabled = true;
+    return;
+  }
+
+  const progress = policy.documentProgress || { completed: 0, total: 0, missing: 0 };
+  if (careSelectedSummary) {
+    const statusLabel = salesStatusLabels[policy.salesStatus] || policy.salesStatus;
+    careSelectedSummary.innerHTML = `
+      <strong>${escapeHtml(policy.customerName)} · ${escapeHtml(policy.policyNumber || policy.publicRef)}</strong>
+      <span>${escapeHtml(policy.insuranceCategory)}${policy.productName ? ` / ${escapeHtml(policy.productName)}` : ""} · ${escapeHtml(statusLabel)} · เอกสารครบ ${progress.completed}/${progress.total}</span>
+    `;
+  }
+  if (documentProgressLabel) documentProgressLabel.textContent = `${progress.completed}/${progress.total}`;
+  if (saveDocumentChecklistButton) saveDocumentChecklistButton.disabled = false;
+  if (saveActivityButton) saveActivityButton.disabled = false;
+
+  renderDocumentChecklist(policy);
+  renderActivityTimeline(policy);
+}
+
+function renderDocumentChecklist(policy) {
+  const items = policy.documentChecklist || [];
+  if (!documentChecklist) return;
+  documentChecklist.innerHTML = items.length
+    ? items.map((item, index) => `
+      <label class="document-checklist__item">
+        <input type="checkbox" data-checklist-index="${index}" ${item.completed ? "checked" : ""}>
+        <span>${escapeHtml(item.label)}</span>
+      </label>
+    `).join("")
+    : `
+      <div class="plan-empty plan-empty--compact">
+        <strong>ยังไม่มีรายการเอกสาร</strong>
+        <span>ระบบจะสร้างรายการเริ่มต้นตามประเภทประกันเมื่อโหลดข้อมูล</span>
+      </div>
+    `;
+}
+
+function renderActivityTimeline(policy) {
+  const activities = policy.activityTimeline || [];
+  if (!activityTimeline) return;
+  activityTimeline.innerHTML = activities.length
+    ? activities.map((activity) => `
+      <article class="activity-item">
+        <div>
+          <strong>${escapeHtml(activity.activityLabel)}</strong>
+          <span>${formatDate(activity.activityDate)}${activity.nextFollowUp ? ` · นัดถัดไป ${formatDate(activity.nextFollowUp)}` : ""}</span>
+        </div>
+        <p>${escapeHtml(activity.note)}</p>
+        <button type="button" data-delete-activity="${activity.id}">ลบบันทึก</button>
+      </article>
+    `).join("")
+    : `
+      <div class="plan-empty plan-empty--compact">
+        <strong>ยังไม่มี Timeline</strong>
+        <span>เพิ่มบันทึกการโทร ส่ง LINE หรือติดตามเอกสารเพื่อให้ทีมดูงานต่อได้</span>
+      </div>
+    `;
+}
+
+function renderAttachmentViewer(file) {
+  if (!attachmentDialog || !attachmentDialogViewer || !file) return;
+  attachmentDialogTitle.textContent = file.name || "ไฟล์แนบกรมธรรม์";
+  attachmentDialogMeta.textContent = `${file.type || "ไฟล์แนบ"} · ${Math.round((file.size || 0) / 1024)} KB`;
+  attachmentDialogDownload.href = `${file.url}?download=1`;
+  attachmentDialogDownload.setAttribute("download", file.name || "");
+
+  const sourceUrl = `${file.url}#toolbar=1&navpanes=0`;
+  if (file.type?.startsWith("image/")) {
+    attachmentDialogViewer.innerHTML = `<img src="${escapeHtml(file.url)}" alt="${escapeHtml(file.name)}">`;
+  } else if (file.type === "application/pdf") {
+    attachmentDialogViewer.innerHTML = `<iframe src="${escapeHtml(sourceUrl)}" title="${escapeHtml(file.name)}"></iframe>`;
+  } else {
+    attachmentDialogViewer.innerHTML = `
+      <div class="attachment-dialog__fallback">
+        <strong>กำลังเปิดไฟล์ในหน้าเว็บ</strong>
+        <span>ไฟล์บางชนิด เช่น Word หรือ Excel อาจขึ้นอยู่กับ browser ว่าสามารถแสดงตัวอย่างได้หรือไม่</span>
+        <iframe src="${escapeHtml(file.url)}" title="${escapeHtml(file.name)}"></iframe>
+      </div>
+    `;
+  }
+  attachmentDialog.showModal();
+}
+
+function findAttachmentById(attachmentId) {
+  for (const policy of policies) {
+    const attachment = policy.attachments?.find((file) => String(file.id) === String(attachmentId));
+    if (attachment) return attachment;
+  }
+  return null;
+}
+
+function initializeProductMediaPlanOptions() {
+  if (!productMediaPlan) return;
+  productMediaPlan.innerHTML = productMediaPlanOptions
+    .map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
+    .join("");
+}
+
+function getPlanLabel(planId) {
+  return productMediaPlanOptions.find(([value]) => value === planId)?.[1] || planId;
+}
+
+function getPlanCategory(planId) {
+  return productMediaCategories[planId] || "motor";
+}
+
+function getPlanCoverImage(planId) {
+  return productMedia[planId]?.cover?.url || productMediaCategoryImages[getPlanCategory(planId)];
+}
+
+function renderProductMediaPreview() {
+  if (!productMediaPreview) return;
+  productMediaPreview.innerHTML = productMediaPlanOptions.map(([planId, label]) => {
+    const media = productMedia[planId] || { cover: null, images: [], pdf: null };
+    const imageCount = media.images?.length || 0;
+    const hasPdf = Boolean(media.pdf);
+    return `
+      <article class="admin-plan-card">
+        <img src="${escapeHtml(getPlanCoverImage(planId))}" alt="">
+        <div class="admin-plan-card__body">
+          <span>${escapeHtml(getPlanCategory(planId))}</span>
+          <h3>${escapeHtml(label)}</h3>
+          <p>${imageCount} รูปเอกสาร${hasPdf ? " · มี PDF" : ""}</p>
+          <div class="admin-plan-card__actions">
+            <button type="button" data-edit-media-plan="${escapeHtml(planId)}" data-media-type="cover">แก้รูปประกอบ</button>
+            <button type="button" data-edit-media-plan="${escapeHtml(planId)}" data-media-type="documents">เพิ่มเอกสาร</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderProductMediaList() {
+  if (!productMediaList || !productMediaPlan) return;
+  const planId = productMediaPlan.value;
+  const media = productMedia[planId] || { cover: null, images: [], pdf: null };
+  const files = [
+    media.cover ? { ...media.cover, label: "รูปประกอบ" } : null,
+    ...(media.images || []).map((image, index) => ({ ...image, label: `รูปเอกสาร ${index + 1}` })),
+    media.pdf ? { ...media.pdf, label: "PDF เอกสาร" } : null
+  ].filter(Boolean);
+
+  productMediaList.innerHTML = files.length
+    ? `
+      <strong>${escapeHtml(getPlanLabel(planId))}</strong>
+      ${files.map((file) => `
+        <div class="media-file-card">
+          ${file.url && file.type?.startsWith("image/")
+            ? `<img src="${escapeHtml(file.url)}" alt="">`
+            : `<span class="media-file-card__icon">PDF</span>`}
+          <div>
+            <b>${escapeHtml(file.label)}</b>
+            <a href="${escapeHtml(file.url)}" target="_blank" rel="noopener">${escapeHtml(file.originalName || file.filename)}</a>
+            <small>${file.source === "default" ? "ข้อมูลตั้งต้นใน Database" : `${Math.round((file.size || 0) / 1024)} KB · อัปโหลดเอง`}</small>
+          </div>
+          <button type="button" data-edit-product-media="${escapeHtml(file.filename)}">แก้ไข</button>
+          <button type="button" data-remove-product-media="${escapeHtml(file.filename)}">ลบ</button>
+        </div>
+      `).join("")}
+    `
+    : `
+      <div class="plan-empty plan-empty--compact">
+        <strong>ยังไม่มีไฟล์สำหรับ ${escapeHtml(getPlanLabel(planId))}</strong>
+        <span>ถ้าไม่อัปโหลด ระบบจะใช้รูปและเอกสารเดิมจากโฟลเดอร์ document/assets</span>
+      </div>
+    `;
+}
+
+function resetForm() {
+  policyForm.reset();
+  document.querySelector("#policy-id").value = "";
+  document.querySelector("#line-user-id").value = "";
+  renderPolicyProductOptions();
+  document.querySelector("#form-title").textContent = "เพิ่มข้อมูลกรมธรรม์";
+  document.querySelector("#form-mode-number").textContent = "01";
+  currentAttachments.hidden = true;
+  currentAttachments.innerHTML = "";
+  formFeedback.textContent = "พร้อมบันทึกข้อมูลลง SQLite";
+  renderCarePanel();
+}
+
+function editPolicy(policyId) {
+  const policy = policies.find((item) => String(item.id) === String(policyId));
+  if (!policy) return;
+
+  selectedPolicyId = String(policyId);
+  document.querySelector("#policy-id").value = policy.id;
+  document.querySelector("#customer-name").value = policy.customerName || "";
+  document.querySelector("#customer-phone").value = policy.customerPhone || "";
+  document.querySelector("#line-name").value = policy.lineName || "";
+  document.querySelector("#line-user-id").value = policy.lineUserId || "";
+  document.querySelector("#assigned-agent").value = policy.assignedAgent || "";
+  document.querySelector("#insurance-category").value = policy.insuranceCategory || "รถยนต์";
+  renderPolicyProductOptions(policy.productName || "");
+  document.querySelector("#policy-number").value = policy.policyNumber || "";
+  document.querySelector("#insurer-name").value = policy.insurerName || "";
+  document.querySelector("#start-date").value = policy.startDate || "";
+  document.querySelector("#end-date").value = policy.endDate || "";
+  document.querySelector("#premium-amount").value = policy.premiumAmount || "";
+  document.querySelector("#sales-status").value = policy.salesStatus || "new";
+  document.querySelector("#next-follow-up").value = policy.nextFollowUp || "";
+  document.querySelector("#customer-notes").value = policy.customerNotes || "";
+  document.querySelector("#form-title").textContent = "แก้ไขข้อมูลกรมธรรม์";
+  document.querySelector("#form-mode-number").textContent = "02";
+  renderCurrentAttachments(policy);
+  renderCarePanel();
+  renderPolicyTable();
+  document.querySelector("#policy-form").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function selectPolicy(policyId) {
+  selectedPolicyId = String(policyId);
+  renderMessage();
+  renderPolicyTable();
+  renderCarePanel();
+}
+
+function openCarePolicy(policyId) {
+  selectPolicy(policyId);
+  document.querySelector("#customer-care")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function deletePolicy(policyId) {
+  const policy = policies.find((item) => String(item.id) === String(policyId));
+  if (!policy) return;
+  const confirmed = window.confirm(`ต้องการลบข้อมูลของ ${policy.customerName} ใช่ไหม`);
+  if (!confirmed) return;
+
+  await apiFetch(`/api/policies/${policyId}`, { method: "DELETE" });
+  if (selectedPolicyId === String(policyId)) selectedPolicyId = "";
+  await refreshPoliciesAndReports();
+}
+
+function renderMessage() {
+  const policy = getSelectedPolicy();
+  if (!policy) {
+    generatedMessage.value = "";
+    generatedMessage.placeholder = "เลือกกรมธรรม์จากรายการเพื่อสร้างข้อความ";
+    openLineShare.href = "#";
+    openLineShare.setAttribute("aria-disabled", "true");
+    pushLineMessageButton.disabled = true;
+    linePushFeedback.textContent = "เลือกกรมธรรม์ก่อนส่งข้อความ";
+    return;
+  }
+
+  const tone = messageTone.value;
+  const dueLabel = getDueLabel(policy.endDate);
+  const agentName = policy.assignedAgent || "ทีม Mittare Sattahip";
+  const messages = {
+    renewal: `แจ้งเตือนผู้ดูแล\n\nลูกค้า: ${policy.customerName}\nโทร: ${policy.customerPhone || "-"}\nกรมธรรม์: ${policy.policyNumber || policy.publicRef}\nประเภท: ${policy.insuranceCategory}${policy.productName ? ` (${policy.productName})` : ""}\nครบกำหนด: ${formatDate(policy.endDate)} (${dueLabel})\nผู้ดูแล: ${agentName}\n\nงานที่แนะนำ: ตรวจแผนต่ออายุและเปรียบเทียบความคุ้มครองให้ลูกค้า`,
+    document: `แจ้งเตือนผู้ดูแล\n\nลูกค้า: ${policy.customerName}\nโทร: ${policy.customerPhone || "-"}\nกรมธรรม์: ${policy.policyNumber || policy.publicRef}\nประเภท: ${policy.insuranceCategory}${policy.productName ? ` (${policy.productName})` : ""}\nสถานะ: ขอเอกสารเพิ่มเติม\nผู้ดูแล: ${agentName}\n\nหมายเหตุ: ${policy.customerNotes || "ยังไม่มีรายละเอียดเอกสารที่ต้องขอ"}`,
+    payment: `แจ้งเตือนผู้ดูแล\n\nลูกค้า: ${policy.customerName}\nโทร: ${policy.customerPhone || "-"}\nกรมธรรม์: ${policy.policyNumber || policy.publicRef}\nเบี้ยที่บันทึกไว้: ${formatCurrency(policy.premiumAmount)}\nครบกำหนด: ${formatDate(policy.endDate)}\nผู้ดูแล: ${agentName}\n\nงานที่แนะนำ: ติดตามนัดชำระเบี้ยและหลักฐานการชำระ`
+  };
+
+  generatedMessage.value = messages[tone] || messages.renewal;
+  openLineShare.href = `https://line.me/R/msg/text/?${encodeURIComponent(generatedMessage.value)}`;
+  openLineShare.removeAttribute("aria-disabled");
+  pushLineMessageButton.disabled = !linePushConfigured || !adminLineRecipientConfigured;
+  linePushFeedback.textContent = !linePushConfigured
+    ? "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์"
+    : adminLineRecipientConfigured
+      ? "พร้อมส่ง LINE Push ให้ผู้ดูแล"
+      : "ยังไม่ได้ตั้งค่า ADMIN_LINE_USER_ID บนเซิร์ฟเวอร์";
+}
+
+function renderAll() {
+  renderDashboard();
+  renderReports();
+  renderPolicyTable();
+  renderMessage();
+  renderCarePanel();
+}
+
+async function handleFormSubmit(event) {
+  event.preventDefault();
+  try {
+    const formData = new FormData(policyForm);
+    const policyId = formData.get("policyId");
+    const wasEditing = Boolean(policyId);
+    const endpoint = policyId ? `/api/policies/${policyId}` : "/api/policies";
+    const method = policyId ? "PUT" : "POST";
+    const savedPolicy = await apiFetch(endpoint, { method, body: formData });
+    selectedPolicyId = String(savedPolicy.id);
+    await refreshPoliciesAndReports();
+    if (wasEditing) {
+      editPolicy(savedPolicy.id);
+      formFeedback.textContent = "อัปเดตข้อมูลกรมธรรม์เรียบร้อยแล้ว";
+    } else {
+      resetForm();
+      selectedPolicyId = String(savedPolicy.id);
+      renderPolicyTable();
+      formFeedback.textContent = "บันทึกข้อมูลลง SQLite เรียบร้อยแล้ว";
+    }
+  } catch (error) {
+    formFeedback.textContent = error.message;
+  }
+}
+
+async function removeAttachment(attachmentId) {
+  const confirmed = window.confirm("ต้องการลบไฟล์แนบนี้ใช่ไหม");
+  if (!confirmed) return;
+  await apiFetch(`/api/attachments/${attachmentId}`, { method: "DELETE" });
+  await refreshPoliciesAndReports();
+  const policyId = document.querySelector("#policy-id").value;
+  if (policyId) renderCurrentAttachments(policies.find((item) => String(item.id) === String(policyId)));
+}
+
+async function saveDocumentChecklist() {
+  const policy = getSelectedPolicy();
+  if (!policy || !documentChecklist) return;
+  const items = Array.from(documentChecklist.querySelectorAll("[data-checklist-index]")).map((checkbox) => {
+    const sourceItem = policy.documentChecklist[Number(checkbox.dataset.checklistIndex)];
+    return {
+      label: sourceItem?.label || "",
+      completed: checkbox.checked
+    };
+  });
+  saveDocumentChecklistButton.disabled = true;
+  documentFeedback.textContent = "กำลังบันทึก Checklist...";
+  try {
+    const updatedPolicy = await apiFetch(`/api/policies/${policy.id}/document-checklist`, {
+      method: "PUT",
+      body: JSON.stringify({ items })
+    });
+    policies = policies.map((item) => String(item.id) === String(updatedPolicy.id) ? updatedPolicy : item);
+    documentFeedback.textContent = "บันทึก Checklist เอกสารเรียบร้อยแล้ว";
+    await refreshReports();
+    renderAll();
+  } catch (error) {
+    documentFeedback.textContent = error.message;
+  } finally {
+    saveDocumentChecklistButton.disabled = false;
+  }
+}
+
+async function handleActivitySubmit(event) {
+  event.preventDefault();
+  const policy = getSelectedPolicy();
+  if (!policy) return;
+  const formData = new FormData(activityForm);
+  saveActivityButton.disabled = true;
+  activityFeedback.textContent = "กำลังเพิ่ม Timeline...";
+  try {
+    await apiFetch(`/api/policies/${policy.id}/activities`, {
+      method: "POST",
+      body: JSON.stringify({
+        activityType: formData.get("activityType"),
+        activityDate: formData.get("activityDate"),
+        nextFollowUp: formData.get("nextFollowUp"),
+        note: formData.get("note")
+      })
+    });
+    activityForm.reset();
+    document.querySelector("#activity-date").valueAsDate = new Date();
+    activityFeedback.textContent = "เพิ่ม Timeline การติดต่อลูกค้าแล้ว";
+    await refreshPoliciesAndReports();
+  } catch (error) {
+    activityFeedback.textContent = error.message;
+  } finally {
+    saveActivityButton.disabled = false;
+  }
+}
+
+async function deleteActivity(activityId) {
+  const confirmed = window.confirm("ต้องการลบบันทึก Timeline นี้ใช่ไหม");
+  if (!confirmed) return;
+  try {
+    await apiFetch(`/api/policy-activities/${activityId}`, { method: "DELETE" });
+    activityFeedback.textContent = "ลบบันทึก Timeline แล้ว";
+    await refreshPoliciesAndReports();
+  } catch (error) {
+    activityFeedback.textContent = error.message;
+  }
+}
+
+async function addSampleData() {
+  await apiFetch("/api/demo/seed", {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+  await refreshPoliciesAndReports();
+  formFeedback.textContent = "เพิ่มข้อมูลตัวอย่างลง SQLite แล้ว ใช้ทดสอบแจ้งเตือนผู้ดูแลได้";
+}
+
+async function exportData() {
+  const payload = await apiFetch("/api/export");
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `mittare-sqlite-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  backupFeedback.textContent = "Export ข้อมูลจาก SQLite เรียบร้อยแล้ว";
+}
+
+async function downloadFullBackup() {
+  try {
+    backupFeedback.textContent = "กำลังเตรียม Full Backup...";
+    const response = await fetch("/api/backup/full", { credentials: "same-origin" });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || "ดาวน์โหลด Full Backup ไม่สำเร็จ");
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `mittare-full-backup-${new Date().toISOString().slice(0, 10)}.zip`;
+    link.click();
+    URL.revokeObjectURL(url);
+    backupFeedback.textContent = "ดาวน์โหลด Full Backup ZIP เรียบร้อยแล้ว";
+    await refreshReports();
+  } catch (error) {
+    backupFeedback.textContent = error.message;
+  }
+}
+
+async function clearAllData() {
+  const confirmed = window.confirm("ต้องการย้ายข้อมูลกรมธรรม์ทั้งหมดเข้าถังพักใช่ไหม");
+  if (!confirmed) return;
+  await apiFetch("/api/policies", { method: "DELETE" });
+  selectedPolicyId = "";
+  resetForm();
+  await refreshPoliciesAndReports();
+  await refreshDeletedPolicies();
+  backupFeedback.textContent = "ย้ายข้อมูลทั้งหมดเข้าถังพักแล้ว";
+}
+
+async function restorePolicy(policyId) {
+  try {
+    await apiFetch(`/api/policies/${policyId}/restore`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    backupFeedback.textContent = "กู้คืนกรมธรรม์แล้ว";
+    await refreshPoliciesAndReports();
+    await refreshDeletedPolicies();
+  } catch (error) {
+    backupFeedback.textContent = error.message;
+  }
+}
+
+async function purgePolicy(policyId) {
+  const policy = deletedPolicies.find((item) => String(item.id) === String(policyId));
+  const confirmed = window.confirm(`ลบถาวร ${policy?.customerName || "กรมธรรม์นี้"} ใช่ไหม ไฟล์แนบจะถูกลบออกจากเซิร์ฟเวอร์ด้วย`);
+  if (!confirmed) return;
+  try {
+    await apiFetch(`/api/policies/${policyId}/purge`, { method: "DELETE" });
+    backupFeedback.textContent = "ลบถาวรเรียบร้อยแล้ว";
+    await refreshPoliciesAndReports();
+    await refreshDeletedPolicies();
+  } catch (error) {
+    backupFeedback.textContent = error.message;
+  }
+}
+
+async function handleProductMediaSubmit(event) {
+  event.preventDefault();
+  try {
+    const formData = new FormData(productMediaForm);
+    const planId = formData.get("planId");
+    await apiFetch(`/api/product-media/${encodeURIComponent(planId)}`, {
+      method: "POST",
+      body: formData
+    });
+    productMediaForm.querySelector("#product-media-files").value = "";
+    mediaFeedback.textContent = "อัปโหลดไฟล์เข้าคลังรูปเว็บเรียบร้อยแล้ว";
+    await refreshProductMedia();
+  } catch (error) {
+    mediaFeedback.textContent = error.message;
+  }
+}
+
+async function removeProductMedia(filename) {
+  if (!productMediaPlan?.value || !filename) return;
+  const confirmed = window.confirm("ต้องการลบไฟล์นี้ออกจากหน้าเว็บใช่ไหม");
+  if (!confirmed) return;
+  try {
+    await apiFetch(
+      `/api/product-media/${encodeURIComponent(productMediaPlan.value)}/files/${encodeURIComponent(filename)}`,
+      { method: "DELETE" }
+    );
+    mediaFeedback.textContent = "ลบไฟล์ออกจากคลังรูปเว็บแล้ว";
+    await refreshProductMedia();
+  } catch (error) {
+    mediaFeedback.textContent = error.message;
+  }
+}
+
+function editProductMedia(planId, mediaType = "cover") {
+  if (!productMediaPlan) return;
+  productMediaPlan.value = planId;
+  document.querySelector("#product-media-type").value = mediaType;
+  renderProductMediaList();
+  document.querySelector("#product-media-form").scrollIntoView({ behavior: "smooth", block: "center" });
+  mediaFeedback.textContent = `เลือก ${getPlanLabel(planId)} แล้ว กรุณาเลือกไฟล์เพื่ออัปโหลด`;
+}
+
+async function pushSelectedLineMessage() {
+  const policy = getSelectedPolicy();
+  if (!policy || !generatedMessage.value) return;
+  pushLineMessageButton.disabled = true;
+  linePushFeedback.textContent = "กำลังส่ง LINE Push ให้ผู้ดูแล...";
+  try {
+    await apiFetch(`/api/policies/${policy.id}/line-push`, {
+      method: "POST",
+      body: JSON.stringify({ message: generatedMessage.value })
+    });
+    linePushFeedback.textContent = `ส่งแจ้งเตือนเรื่อง ${policy.customerName} ให้ผู้ดูแลแล้ว`;
+  } catch (error) {
+    linePushFeedback.textContent = error.message;
+  } finally {
+    renderMessage();
+  }
+}
+
+async function sendAdminAlertSummary() {
+  sendAdminAlertButton.disabled = true;
+  adminLineFeedback.textContent = "กำลังส่งสรุปแจ้งเตือนให้ผู้ดูแล...";
+  try {
+    await apiFetch("/api/admin/line-alerts", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    adminLineFeedback.textContent = "ส่งสรุปแจ้งเตือนให้ผู้ดูแลแล้ว";
+  } catch (error) {
+    adminLineFeedback.textContent = error.message;
+  } finally {
+    renderAdminLineState();
+  }
+}
+
+loginForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const username = new FormData(loginForm).get("adminUsername");
+    const password = new FormData(loginForm).get("adminPassword");
+    const sessionPayload = await apiFetch("/api/session", {
+      method: "POST",
+      body: JSON.stringify({ username, password })
+    });
+    adminUser = sessionPayload.adminUser || null;
+    loginForm.reset();
+    document.querySelector("#admin-username").value = adminUser?.username || "admin";
+    setAuthenticated(true);
+    await Promise.all([refreshSettings(), refreshPolicies(), refreshReports(), refreshProductMedia()]);
+  } catch (error) {
+    loginFeedback.textContent = error.message;
+  }
+});
+
+logoutButton?.addEventListener("click", async () => {
+  await apiFetch("/api/session", { method: "DELETE" });
+  policies = [];
+  deletedPolicies = [];
+  selectedPolicyId = "";
+  productMedia = {};
+  reportOverview = null;
+  adminUser = null;
+  adminLineRecipientConfigured = false;
+  setAuthenticated(false);
+  renderReports();
+  renderTrashList();
+});
+
+policyForm?.addEventListener("submit", handleFormSubmit);
+policyForm?.addEventListener("reset", () => window.setTimeout(resetForm, 0));
+document.querySelector("#insurance-category")?.addEventListener("change", () => renderPolicyProductOptions());
+policySearch?.addEventListener("input", renderPolicyTable);
+statusFilter?.addEventListener("change", renderPolicyTable);
+messageTone?.addEventListener("change", renderMessage);
+
+policyTableBody?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const policyId = button.dataset.id;
+  if (button.dataset.action === "select") selectPolicy(policyId);
+  if (button.dataset.action === "care") openCarePolicy(policyId);
+  if (button.dataset.action === "line") {
+    selectPolicy(policyId);
+    pushSelectedLineMessage();
+  }
+  if (button.dataset.action === "edit") editPolicy(policyId);
+  if (button.dataset.action === "delete") deletePolicy(policyId);
+});
+
+currentAttachments?.addEventListener("click", (event) => {
+  const viewButton = event.target.closest("button[data-view-attachment]");
+  if (viewButton) {
+    renderAttachmentViewer(findAttachmentById(viewButton.dataset.viewAttachment));
+    return;
+  }
+  const removeButton = event.target.closest("button[data-remove-attachment]");
+  if (!removeButton) return;
+  removeAttachment(removeButton.dataset.removeAttachment);
+});
+
+productMediaForm?.addEventListener("submit", handleProductMediaSubmit);
+productMediaPlan?.addEventListener("change", renderProductMediaList);
+productMediaList?.addEventListener("click", (event) => {
+  const removeButton = event.target.closest("button[data-remove-product-media]");
+  if (removeButton) {
+    removeProductMedia(removeButton.dataset.removeProductMedia);
+    return;
+  }
+  const editButton = event.target.closest("button[data-edit-product-media]");
+  if (editButton) {
+    document.querySelector("#product-media-files").click();
+  }
+});
+
+productMediaPreview?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-edit-media-plan]");
+  if (!button) return;
+  editProductMedia(button.dataset.editMediaPlan, button.dataset.mediaType);
+});
+
+saveDocumentChecklistButton?.addEventListener("click", saveDocumentChecklist);
+activityForm?.addEventListener("submit", handleActivitySubmit);
+activityTimeline?.addEventListener("click", (event) => {
+  const deleteButton = event.target.closest("button[data-delete-activity]");
+  if (!deleteButton) return;
+  deleteActivity(deleteButton.dataset.deleteActivity);
+});
+sendAdminAlertButton?.addEventListener("click", sendAdminAlertSummary);
+pushLineMessageButton?.addEventListener("click", pushSelectedLineMessage);
+
+document.querySelector("#copy-message")?.addEventListener("click", async () => {
+  if (!generatedMessage.value) return;
+  try {
+    await navigator.clipboard.writeText(generatedMessage.value);
+    formFeedback.textContent = "คัดลอกข้อความแล้ว";
+  } catch (error) {
+    generatedMessage.focus();
+    generatedMessage.select();
+    formFeedback.textContent = "เบราว์เซอร์ไม่อนุญาตให้คัดลอกอัตโนมัติ กรุณากด Ctrl+C หลังเลือกข้อความ";
+  }
+});
+
+document.querySelector("#add-sample-data")?.addEventListener("click", addSampleData);
+document.querySelector("#export-data")?.addEventListener("click", exportData);
+downloadFullBackupButton?.addEventListener("click", downloadFullBackup);
+document.querySelector("#clear-all-data")?.addEventListener("click", clearAllData);
+document.querySelector("#load-trash")?.addEventListener("click", refreshDeletedPolicies);
+trashList?.addEventListener("click", (event) => {
+  const restoreButton = event.target.closest("button[data-restore-policy]");
+  if (restoreButton) {
+    restorePolicy(restoreButton.dataset.restorePolicy);
+    return;
+  }
+  const purgeButton = event.target.closest("button[data-purge-policy]");
+  if (purgeButton) purgePolicy(purgeButton.dataset.purgePolicy);
+});
+
+initializeProductMediaPlanOptions();
+renderPolicyProductOptions();
+if (document.querySelector("#activity-date")) document.querySelector("#activity-date").valueAsDate = new Date();
+initializeAgentDashboard();
+attachmentDialog?.addEventListener("click", (event) => {
+  if (event.target === attachmentDialog) attachmentDialog.close();
+});
+document.querySelector("#attachment-dialog-close")?.addEventListener("click", () => attachmentDialog?.close());
+attachmentDialog?.addEventListener("close", () => {
+  if (attachmentDialogViewer) attachmentDialogViewer.innerHTML = "";
+});
+})();

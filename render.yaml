@@ -1,20 +1,32 @@
 services:
   - type: web
-    name: mittare-exam-coach
+    name: mittare-sattahip
     runtime: python
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --workers 1 --threads 4 --timeout 60 server:app
-    healthCheckPath: /healthz
+    startCommand: gunicorn --workers 1 --threads 4 --timeout 60 combined_app:application
+    healthCheckPath: /exam/healthz
     autoDeployTrigger: commit
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: DATABASE_PATH
-        value: /tmp/mittare-exam/exam_coach.sqlite3
+        value: /var/data/exam_coach.sqlite3
+      - key: APP_INSTANCE_DIR
+        value: /var/data
       - key: SECRET_KEY
         generateValue: true
       - key: ADMIN_USERNAME
         value: mt4admin
       - key: ADMIN_PASSWORD
         sync: false
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      - key: ADMIN_LINE_USER_ID
+        value: Ueaebf5b870fcdd317383855ff445e460
+    disk:
+      name: mittare-data
+      mountPath: /var/data
+      sizeGB: 1
