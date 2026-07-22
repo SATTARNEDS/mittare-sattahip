@@ -2284,12 +2284,31 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
 .exam-promo li strong { color: var(--white); font-size: .85rem; }
 .exam-promo li span { color: rgba(255,255,255,.62); font-size: .67rem; }
 .exam-promo__action { display: grid; gap: 8px; }
-.exam-promo__action > span { color: rgba(255,255,255,.68); font-size: .72rem; font-weight: 700; }
+.exam-promo__action > span { display: flex; gap: 8px; align-items: center; color: rgba(255,255,255,.78); font-size: .72rem; font-weight: 800; }
+.exam-promo__action > span::before { width: 8px; height: 8px; content: ""; background: #72f3a6; border-radius: 50%; box-shadow: 0 0 0 0 rgba(114,243,166,.55); animation: exam-status-pulse 2s ease-out infinite; }
 .exam-promo__action small { color: rgba(255,255,255,.55); font-size: .64rem; }
-.exam-promo__button { display: flex; min-height: 58px; padding: 0 22px; align-items: center; justify-content: space-between; color: var(--green-950); background: var(--yellow); border: 2px solid var(--yellow); border-radius: 16px; font-weight: 900; box-shadow: 0 15px 36px rgba(244,223,22,.18); transition: transform .2s ease, box-shadow .2s ease; }
-.exam-promo__button:hover { transform: translateY(-3px); box-shadow: 0 20px 42px rgba(244,223,22,.28); }
+.exam-promo__button { position: relative; isolation: isolate; display: flex; min-height: 58px; padding: 0 22px; overflow: hidden; align-items: center; justify-content: space-between; color: var(--green-950); background: linear-gradient(110deg, #f4df16 0%, #ffe94a 48%, #f4df16 100%); background-size: 220% 100%; border: 2px solid #ffe44a; border-radius: 16px; font-weight: 900; box-shadow: 0 15px 36px rgba(244,223,22,.2), inset 0 1px 0 rgba(255,255,255,.65); transition: transform .24s ease, box-shadow .24s ease; animation: exam-button-gradient 5s ease-in-out infinite; }
+.exam-promo__button::before { position: absolute; z-index: -1; top: -120%; left: -30%; width: 24%; height: 340%; content: ""; background: linear-gradient(90deg, transparent, rgba(255,255,255,.78), transparent); transform: rotate(22deg) translateX(-220%); animation: exam-button-shine 4s ease-in-out infinite; }
+.exam-promo__button::after { position: absolute; z-index: -2; inset: 5px; content: ""; border: 1px solid rgba(6,63,59,.12); border-radius: 11px; pointer-events: none; }
+.exam-promo__button:hover { transform: translateY(-4px) scale(1.015); box-shadow: 0 22px 48px rgba(244,223,22,.34), 0 0 0 6px rgba(244,223,22,.08); }
+.exam-promo__button:active { transform: translateY(1px) scale(.99); }
 .exam-promo__button:focus-visible { outline: 3px solid var(--white); outline-offset: 4px; }
-.exam-promo__button svg { width: 22px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.4; }
+.exam-promo__button span { position: relative; z-index: 1; }
+.exam-promo__button svg { position: relative; z-index: 1; width: 22px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.4; transition: transform .22s ease; }
+.exam-promo__button:hover svg { transform: translateX(5px); }
+
+@keyframes exam-status-pulse {
+  70% { box-shadow: 0 0 0 8px rgba(114,243,166,0); }
+  100% { box-shadow: 0 0 0 0 rgba(114,243,166,0); }
+}
+@keyframes exam-button-gradient {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@keyframes exam-button-shine {
+  0%, 58% { transform: rotate(22deg) translateX(-220%); }
+  78%, 100% { transform: rotate(22deg) translateX(650%); }
+}
 
 @media (max-width: 800px) {
   .exam-promo__card { grid-template-columns: 72px minmax(0, 1fr); }
@@ -2338,4 +2357,11 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
   .leader-card--right { grid-template-columns: 104px minmax(0, 1fr); }
   .leader-contact { grid-template-columns: 1fr; }
   .leader-contact a:first-child { grid-column: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exam-promo__action > span::before,
+  .exam-promo__button,
+  .exam-promo__button::before { animation: none; }
+  .exam-promo__button:hover { transform: none; }
 }
