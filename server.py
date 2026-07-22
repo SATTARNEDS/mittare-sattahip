@@ -198,6 +198,14 @@ def initialize_database() -> None:
         "password_hash": "TEXT",
         "last_login_at": "TEXT",
     })
+    ensure_columns(database, "attempts", {
+        "exam_mode": "TEXT NOT NULL DEFAULT 'practice'",
+    })
+    database.execute("UPDATE attempts SET exam_mode='simulation' WHERE selected_topic='จำลองสอบจริง'")
+    database.execute(
+        "UPDATE attempts SET exam_mode='topic' WHERE exam_mode='practice' "
+        "AND selected_topic NOT IN ('ทุกหมวด', '', 'จำลองสอบจริง')"
+    )
     database.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL")
     database.execute(
         "UPDATE questions SET status='published', published_at=COALESCE(published_at, created_at) "
@@ -637,10 +645,14 @@ def save_attempt():
     if total < 1 or score < 0 or score > total:
         return jsonify({"error": "คะแนนไม่ถูกต้อง"}), 400
     topic_scores = payload.get("topicScores", {})
+    exam_mode = str(payload.get("examMode", "practice")).strip().lower()
+    if exam_mode not in {"practice", "topic", "simulation"}:
+        return jsonify({"error": "รูปแบบการสอบไม่ถูกต้อง"}), 400
     database.execute(
-        """INSERT INTO attempts(user_id, score, total_questions, duration_seconds, selected_topic, topic_scores_json)
-        VALUES (?, ?, ?, ?, ?, ?)""",
-        (user["id"], score, total, duration, str(payload.get("selectedTopic", "ทุกหมวด"))[:80], json.dumps(topic_scores, ensure_ascii=False)),
+        """INSERT INTO attempts(user_id, score, total_questions, duration_seconds, selected_topic,
+        topic_scores_json, exam_mode) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (user["id"], score, total, duration, str(payload.get("selectedTopic", "ทุกหมวด"))[:80],
+         json.dumps(topic_scores, ensure_ascii=False), exam_mode),
     )
     database.commit()
     return jsonify({"saved": True}), 201
@@ -1015,6 +1027,58 @@ def admin_users():
         "SELECT id, username, display_name, role, is_active, created_at, last_login_at FROM admin_users ORDER BY id"
     ).fetchall()
     return jsonify([dict(row) for row in rows])
+
+
+@app.get("/api/admin/members")
+@require_admin("admin")
+def admin_members():
+    database = get_database()
+    search = request.args.get("search", "").strip()[:80]
+    parameters: list[object] = []
+    where = ""
+    if search:
+        where = "WHERE u.display_name LIKE ? OR COALESCE(u.username, '') LIKE ?"
+        parameters.extend((f"%{search}%", f"%{search}%"))
+    rows = database.execute(
+        f"""SELECT u.id, u.display_name, u.username, u.team_name, u.created_at, u.last_login_at,
+        COUNT(a.id) AS attempts,
+        COALESCE(ROUND(AVG(a.score * 100.0 / a.total_questions)), 0) AS average_score,
+        COALESCE(MAX(ROUND(a.score * 100.0 / a.total_questions)), 0) AS best_score,
+        MAX(a.completed_at) AS last_attempt_at,
+        SUM(CASE WHEN a.exam_mode='simulation' THEN 1 ELSE 0 END) AS simulation_attempts,
+        SUM(CASE WHEN a.exam_mode='topic' THEN 1 ELSE 0 END) AS topic_attempts
+        FROM users u LEFT JOIN attempts a ON a.user_id=u.id {where}
+        GROUP BY u.id ORDER BY COALESCE(MAX(a.completed_at), u.created_at) DESC, u.id DESC LIMIT 500""",
+        parameters,
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.get("/api/admin/members/<int:member_id>/attempts")
+@require_admin("admin")
+def admin_member_attempts(member_id: int):
+    database = get_database()
+    member = database.execute(
+        "SELECT id, display_name, username, team_name, created_at, last_login_at FROM users WHERE id=?",
+        (member_id,),
+    ).fetchone()
+    if member is None:
+        return jsonify({"error": "ไม่พบสมาชิก"}), 404
+    attempts = database.execute(
+        """SELECT id, score, total_questions, duration_seconds, selected_topic, topic_scores_json,
+        exam_mode, completed_at FROM attempts WHERE user_id=? ORDER BY completed_at DESC, id DESC LIMIT 300""",
+        (member_id,),
+    ).fetchall()
+    items = []
+    for row in attempts:
+        item = dict(row)
+        try:
+            item["topicScores"] = json.loads(item.pop("topic_scores_json"))
+        except (TypeError, json.JSONDecodeError):
+            item["topicScores"] = {}
+            item.pop("topic_scores_json", None)
+        items.append(item)
+    return jsonify({"member": dict(member), "attempts": items})
 
 
 @app.post("/api/admin/users")

@@ -49,6 +49,7 @@
 
       <nav class="workspace-tabs" aria-label="ส่วนจัดการ">
         <button class="tab active" data-panel="questions-panel" type="button">คลังข้อสอบ</button>
+        <button class="tab admin-only" data-panel="members-panel" type="button">สมาชิกและผลสอบ</button>
         <button class="tab admin-only" data-panel="users-panel" type="button">ผู้ดูแล</button>
         <button class="tab admin-only" data-panel="audit-panel" type="button">ประวัติระบบ</button>
       </nav>
@@ -70,6 +71,12 @@
           <strong id="page-indicator">หน้า 1 / 1</strong>
           <button class="secondary" id="next-page" type="button">ถัดไป →</button>
         </nav>
+      </section>
+
+      <section id="members-panel" class="panel" hidden>
+        <div class="member-toolbar"><div><h2>สมาชิกและประวัติการฝึก</h2><p>ดูคะแนนแยกตามรอบจำลองสอบ สุ่มทุกหมวด และฝึกเฉพาะหมวด</p></div><input id="member-search" type="search" placeholder="ค้นหาชื่อหรือชื่อผู้ใช้" aria-label="ค้นหาสมาชิก"></div>
+        <div class="table-wrap"><table class="members-table"><thead><tr><th>สมาชิก</th><th>รอบทั้งหมด</th><th>จำลองสอบ</th><th>แยกหมวด</th><th>คะแนนเฉลี่ย</th><th>สูงสุด</th><th>ทำล่าสุด</th><th><span class="sr-only">คำสั่ง</span></th></tr></thead><tbody id="members-body"></tbody></table></div>
+        <p class="empty" id="members-empty" hidden>ยังไม่พบสมาชิกตามคำค้น</p>
       </section>
 
       <section id="users-panel" class="panel" hidden>
@@ -103,6 +110,7 @@
     </form>
   </dialog>
   <dialog id="history-dialog"><div class="dialog-header"><h2>ประวัติข้อสอบ</h2><button class="icon-button" id="close-history" type="button" aria-label="ปิด">×</button></div><div id="history-list" class="timeline"></div></dialog>
+  <dialog id="member-history-dialog"><div class="dialog-header"><div><p class="eyebrow">LEARNING RECORD</p><h2 id="member-history-title">ประวัติการทำข้อสอบ</h2><p id="member-history-summary"></p></div><button class="icon-button" id="close-member-history" type="button" aria-label="ปิด">×</button></div><div id="member-attempts-list" class="attempt-list"></div></dialog>
   <datalist id="topic-list"></datalist>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <script src="admin.js" defer></script>

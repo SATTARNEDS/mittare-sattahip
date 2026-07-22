@@ -110,6 +110,38 @@ class AdminWorkflowTest(unittest.TestCase):
         response = self.client.post("/api/admin/questions/1/pause")
         self.assertEqual(response.status_code, 403)
 
+    def test_admin_can_review_member_attempts_by_mode(self) -> None:
+        member_client = server.app.test_client()
+        username = f"learner{int(__import__('time').time_ns())}"
+        registered = member_client.post("/api/members/register", json={
+            "displayName": f"ผู้เรียน {username[-6:]}",
+            "username": username,
+            "password": "Strong-Member-123",
+        })
+        self.assertEqual(registered.status_code, 201)
+        saved = member_client.post("/api/attempts", json={
+            "token": registered.get_json()["token"],
+            "score": 78,
+            "totalQuestions": 100,
+            "durationSeconds": 2400,
+            "selectedTopic": "จำลองสอบจริง",
+            "examMode": "simulation",
+            "topicScores": {"จรรยาบรรณ": {"correct": 16, "total": 20}},
+        })
+        self.assertEqual(saved.status_code, 201)
+
+        members = self.client.get(f"/api/admin/members?search={username}")
+        self.assertEqual(members.status_code, 200)
+        member = members.get_json()[0]
+        self.assertEqual(member["attempts"], 1)
+        self.assertEqual(member["simulation_attempts"], 1)
+
+        history = self.client.get(f"/api/admin/members/{member['id']}/attempts")
+        self.assertEqual(history.status_code, 200)
+        attempt = history.get_json()["attempts"][0]
+        self.assertEqual(attempt["exam_mode"], "simulation")
+        self.assertEqual(attempt["topicScores"]["จรรยาบรรณ"]["correct"], 16)
+
     def test_environment_can_reset_existing_admin_password_and_unlock_login(self) -> None:
         new_password = "Reset-Test-Password-456"
         database = server.sqlite3.connect(server.DATABASE_PATH)

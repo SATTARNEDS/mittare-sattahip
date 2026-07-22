@@ -236,9 +236,43 @@ async function showHistory(id) {
 document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", async () => {
   document.querySelectorAll(".tab").forEach(item => item.classList.toggle("active", item === tab));
   document.querySelectorAll(".panel").forEach(panel => { panel.hidden = panel.id !== tab.dataset.panel; });
+  if (tab.dataset.panel === "members-panel") await loadMembers();
   if (tab.dataset.panel === "users-panel") await loadUsers();
   if (tab.dataset.panel === "audit-panel") await loadAudit();
 }));
+
+const attemptModeLabels = {practice:"สุ่มทุกหมวด",topic:"ฝึกเฉพาะหมวด",simulation:"จำลองสอบจริง"};
+
+async function loadMembers() {
+  const search = document.getElementById("member-search").value.trim();
+  const members = await api(`/exam/api/admin/members?search=${encodeURIComponent(search)}`);
+  document.getElementById("members-empty").hidden = members.length > 0;
+  document.getElementById("members-body").innerHTML = members.map(member => `<tr><td><div class="question-cell"><strong>${escapeHtml(member.display_name)}</strong><small>${member.username ? `@${escapeHtml(member.username)}` : "บัญชีเดิม"}</small></div></td><td>${member.attempts}</td><td>${member.simulation_attempts || 0}</td><td>${member.topic_attempts || 0}</td><td>${member.average_score}%</td><td><strong>${member.best_score}%</strong></td><td>${member.last_attempt_at ? escapeHtml(formatDate(member.last_attempt_at)) : "ยังไม่เคยทำ"}</td><td><button class="action-button" data-member-id="${member.id}" type="button">ดูประวัติ</button></td></tr>`).join("");
+}
+
+let memberSearchTimer;
+document.getElementById("member-search").addEventListener("input", () => {
+  clearTimeout(memberSearchTimer);
+  memberSearchTimer = setTimeout(() => loadMembers().catch(error => showToast(error.message)), 250);
+});
+
+document.getElementById("members-body").addEventListener("click", async event => {
+  const button = event.target.closest("[data-member-id]");
+  if (!button) return;
+  try {
+    const data = await api(`/exam/api/admin/members/${button.dataset.memberId}/attempts`);
+    document.getElementById("member-history-title").textContent = data.member.display_name;
+    document.getElementById("member-history-summary").textContent = `${data.member.username ? `@${data.member.username} • ` : ""}${data.attempts.length} รอบ`;
+    document.getElementById("member-attempts-list").innerHTML = data.attempts.length ? data.attempts.map(attempt => {
+      const percentage = Math.round(attempt.score * 100 / attempt.total_questions);
+      const topicDetails = Object.entries(attempt.topicScores || {}).map(([topic, result]) => `${escapeHtml(topic)} ${Number(result.correct) || 0}/${Number(result.total) || 0}`).join(" • ");
+      return `<article class="attempt-card"><div><span class="badge badge-${percentage >= 60 ? "published" : "paused"}">${attemptModeLabels[attempt.exam_mode] || "ฝึกข้อสอบ"}</span><strong>${percentage}% <small>${attempt.score}/${attempt.total_questions} คะแนน</small></strong></div><dl><div><dt>ชุดที่ทำ</dt><dd>${escapeHtml(attempt.selected_topic)}</dd></div><div><dt>เวลา</dt><dd>${Math.floor(attempt.duration_seconds / 60)} นาที ${attempt.duration_seconds % 60} วินาที</dd></div><div><dt>วันที่</dt><dd>${escapeHtml(formatDate(attempt.completed_at))}</dd></div></dl>${topicDetails ? `<p>${topicDetails}</p>` : ""}</article>`;
+    }).join("") : "<p class=\"empty\">สมาชิกยังไม่เคยทำข้อสอบ</p>";
+    document.getElementById("member-history-dialog").showModal();
+  } catch (error) { showToast(error.message); }
+});
+
+document.getElementById("close-member-history").addEventListener("click", () => document.getElementById("member-history-dialog").close());
 
 async function loadUsers() {
   const users = await api("/exam/api/admin/users");

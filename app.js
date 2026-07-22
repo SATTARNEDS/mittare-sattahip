@@ -373,7 +373,8 @@ async function saveAttemptToServer(score) {
   });
   try {
     const scoredTotal = examMode === "simulation" ? (simulationRules?.totalPoints || 100) : examQuestions.length;
-    await fetch("/exam/api/attempts", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:user.token,score,totalQuestions:scoredTotal,durationSeconds:elapsedSeconds,selectedTopic:currentSelectedTopic || "ทุกหมวด",topicScores})});
+    const attemptMode = examMode === "simulation" ? "simulation" : (currentSelectedTopic ? "topic" : "practice");
+    await fetch("/exam/api/attempts", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:user.token,score,totalQuestions:scoredTotal,durationSeconds:elapsedSeconds,selectedTopic:currentSelectedTopic || "ทุกหมวด",topicScores,examMode:attemptMode})});
     loadLeaderboard();
   } catch (error) { console.warn("บันทึกผลส่วนกลางไม่สำเร็จ", error); }
 }
