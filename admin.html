@@ -57,7 +57,7 @@
       <nav class="workspace-tabs" aria-label="ส่วนจัดการ">
         <button class="tab active" data-panel="questions-panel" type="button">คลังข้อสอบ</button>
         <button class="tab admin-only" data-panel="members-panel" type="button">สมาชิกและผลสอบ</button>
-        <button class="tab admin-only" data-panel="users-panel" type="button">ผู้ดูแล</button>
+        <button class="tab admin-only" data-panel="users-panel" type="button">ทีมและแอดมิน</button>
         <button class="tab admin-only" data-panel="audit-panel" type="button">ประวัติระบบ</button>
       </nav>
 
@@ -87,9 +87,10 @@
       </section>
 
       <section id="users-panel" class="panel" hidden>
+        <div class="member-toolbar"><div><h2>จัดการสมาชิกทีมและแอดมิน</h2><p>กำหนดบทบาท เปิดหรือพักบัญชี และตั้งรหัสผ่านใหม่โดยไม่แสดงรหัสเดิม</p></div></div>
         <div class="split-panel">
-          <form class="card" id="user-form"><h2>เพิ่มบัญชีหัวหน้าทีม</h2><label>ชื่อที่แสดง<input name="displayName" required minlength="2"></label><label>ชื่อผู้ใช้ภาษาอังกฤษ<input name="username" required minlength="4" pattern="[A-Za-z0-9._-]+"></label><label>รหัสผ่านเริ่มต้น<input name="password" type="password" required minlength="12"></label><label>บทบาท<select name="role"><option value="head">หัวหน้าทีม</option><option value="admin">Admin</option></select></label><p class="form-message" id="user-message" role="alert"></p><button class="primary" type="submit">สร้างบัญชี</button></form>
-          <div class="card"><h2>บัญชีผู้ดูแล</h2><div id="users-list"></div></div>
+          <form class="card" id="user-form"><h2>เพิ่มบัญชีทีมงาน</h2><label>ชื่อที่แสดง<input name="displayName" required minlength="2"></label><label>ชื่อผู้ใช้ภาษาอังกฤษ<input name="username" required minlength="4" pattern="[A-Za-z0-9._-]+" autocomplete="off"></label><label>รหัสผ่านเริ่มต้นอย่างน้อย 8 ตัว<input name="password" type="password" required minlength="8" autocomplete="new-password"></label><label>บทบาท<select name="role"><option value="head">สมาชิกทีม / หัวหน้าทีม</option><option value="admin">Admin</option></select></label><p class="form-message" id="user-message" role="alert"></p><button class="primary" type="submit">สร้างบัญชี</button></form>
+          <div class="card"><h2>บัญชีทีมงาน</h2><div id="users-list" class="admin-user-list"></div></div>
         </div>
       </section>
 
@@ -133,6 +134,17 @@
   </dialog>
   <datalist id="topic-list"></datalist>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="password-dialog" class="password-dialog">
+    <form id="password-form">
+      <div class="dialog-header"><div><p class="eyebrow">SECURITY</p><h2>ตั้งรหัสผ่านใหม่</h2><p id="password-account-name"></p></div><button class="icon-button" id="close-password-dialog" type="button" aria-label="ปิด">×</button></div>
+      <input id="password-user-id" name="userId" type="hidden">
+      <label>รหัสผ่านใหม่อย่างน้อย 8 ตัว<input name="newPassword" type="password" minlength="8" autocomplete="new-password" required></label>
+      <label>ยืนยันรหัสผ่านใหม่<input name="confirmPassword" type="password" minlength="8" autocomplete="new-password" required></label>
+      <p class="password-help">หลังบันทึก ระบบจะยกเลิก session เดิมของบัญชีนี้ และเปิดบัญชีให้เข้าสู่ระบบอีกครั้ง</p>
+      <p class="form-message" id="password-message" role="alert"></p>
+      <div class="dialog-actions"><button class="secondary" id="cancel-password" type="button">ยกเลิก</button><button class="primary" type="submit">บันทึกรหัสผ่านใหม่</button></div>
+    </form>
+  </dialog>
   <script src="admin.js" defer></script>
 </body>
 </html>

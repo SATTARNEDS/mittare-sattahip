@@ -386,7 +386,13 @@ document.getElementById("commit-pdf-import").addEventListener("click", async eve
 
 async function loadUsers() {
   const users = await api("/exam/api/admin/users");
-  document.getElementById("users-list").innerHTML = users.map(user => `<div class="person-row"><div><strong>${escapeHtml(user.display_name)}</strong><small>@${escapeHtml(user.username)} · ${user.role === "admin" ? "Admin" : "หัวหน้าทีม"}</small></div><span class="badge ${user.is_active ? "badge-published" : "badge-paused"}">${user.is_active ? "ใช้งาน" : "ปิด"}</span></div>`).join("");
+  document.getElementById("users-list").innerHTML = users.map(user => {
+    const isSelf = user.id === state.user.id;
+    return `<article class="admin-user-card" data-user-id="${user.id}" data-display-name="${escapeHtml(user.display_name)}" data-active="${user.is_active ? "1" : "0"}">
+      <div class="admin-user-card__identity"><span class="admin-avatar" aria-hidden="true">${escapeHtml(user.display_name).slice(0, 1)}</span><div><strong>${escapeHtml(user.display_name)}${isSelf ? " <em>บัญชีของคุณ</em>" : ""}</strong><small>@${escapeHtml(user.username)} · เข้าล่าสุด ${user.last_login_at ? escapeHtml(formatDate(user.last_login_at)) : "ยังไม่เคย"}</small></div><span class="badge ${user.is_active ? "badge-published" : "badge-paused"}">${user.is_active ? "ใช้งาน" : "พักบัญชี"}</span></div>
+      <div class="admin-user-card__controls"><label>บทบาท<select class="user-role" aria-label="บทบาทของ ${escapeHtml(user.display_name)}"><option value="head" ${user.role === "head" ? "selected" : ""}>สมาชิกทีม / หัวหน้าทีม</option><option value="admin" ${user.role === "admin" ? "selected" : ""}>Admin</option></select></label><div class="row-actions"><button class="action-button reset-user-password" type="button">เปลี่ยนรหัสผ่าน</button><button class="action-button ${user.is_active ? "danger" : ""} toggle-user-status" type="button" ${isSelf ? "disabled title=\"ไม่สามารถพักบัญชีที่กำลังใช้งาน\"" : ""}>${user.is_active ? "พักบัญชี" : "เปิดใช้งาน"}</button></div></div>
+    </article>`;
+  }).join("");
 }
 
 document.getElementById("user-form").addEventListener("submit", async event => {
@@ -396,6 +402,55 @@ document.getElementById("user-form").addEventListener("submit", async event => {
   try {
     await api("/exam/api/admin/users", { method: "POST", body: Object.fromEntries(form) });
     event.currentTarget.reset(); message.textContent = ""; showToast("สร้างบัญชีแล้ว"); await loadUsers();
+  } catch (error) { message.textContent = error.message; }
+});
+
+document.getElementById("users-list").addEventListener("change", async event => {
+  if (!event.target.matches(".user-role")) return;
+  const card = event.target.closest(".admin-user-card");
+  try {
+    await api(`/exam/api/admin/users/${card.dataset.userId}`, {method:"PUT", body:{displayName:card.dataset.displayName,role:event.target.value,isActive:card.dataset.active === "1"}});
+    showToast("บันทึกบทบาทแล้ว");
+    await loadUsers();
+  } catch (error) { showToast(error.message); await loadUsers(); }
+});
+
+document.getElementById("users-list").addEventListener("click", async event => {
+  const card = event.target.closest(".admin-user-card");
+  if (!card) return;
+  if (event.target.closest(".reset-user-password")) {
+    document.getElementById("password-form").reset();
+    document.getElementById("password-user-id").value = card.dataset.userId;
+    document.getElementById("password-account-name").textContent = card.dataset.displayName;
+    document.getElementById("password-message").textContent = "";
+    document.getElementById("password-dialog").showModal();
+    document.querySelector('#password-form input[name="newPassword"]').focus();
+    return;
+  }
+  if (event.target.closest(".toggle-user-status")) {
+    const nextActive = card.dataset.active !== "1";
+    try {
+      const role = card.querySelector(".user-role").value;
+      await api(`/exam/api/admin/users/${card.dataset.userId}`, {method:"PUT", body:{displayName:card.dataset.displayName,role,isActive:nextActive}});
+      showToast(nextActive ? "เปิดบัญชีแล้ว" : "พักบัญชีแล้ว");
+      await loadUsers();
+    } catch (error) { showToast(error.message); }
+  }
+});
+
+function closePasswordDialog() { document.getElementById("password-dialog").close(); }
+document.getElementById("close-password-dialog").addEventListener("click", closePasswordDialog);
+document.getElementById("cancel-password").addEventListener("click", closePasswordDialog);
+document.getElementById("password-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const message = document.getElementById("password-message");
+  message.textContent = "";
+  try {
+    await api(`/exam/api/admin/users/${form.get("userId")}/password`, {method:"POST",body:{newPassword:form.get("newPassword"),confirmPassword:form.get("confirmPassword")}});
+    closePasswordDialog();
+    showToast("เปลี่ยนรหัสผ่านแล้ว และยกเลิก session เดิมเรียบร้อย");
+    await loadUsers();
   } catch (error) { message.textContent = error.message; }
 });
 

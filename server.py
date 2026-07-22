@@ -204,6 +204,9 @@ def initialize_database() -> None:
         "explanation_verified_at": "TEXT",
         "explanation_review_status": "TEXT NOT NULL DEFAULT 'unreviewed'",
     })
+    ensure_columns(database, "admin_users", {
+        "auth_version": "INTEGER NOT NULL DEFAULT 0",
+    })
     ensure_columns(database, "users", {
         "username": "TEXT COLLATE NOCASE",
         "password_hash": "TEXT",
@@ -352,9 +355,14 @@ def current_admin() -> sqlite3.Row | None:
     admin_id = session.get("admin_user_id")
     if not admin_id:
         return None
-    return get_database().execute(
-        "SELECT id, username, display_name, role FROM admin_users WHERE id=? AND is_active=1", (admin_id,)
+    admin = get_database().execute(
+        "SELECT id, username, display_name, role, auth_version FROM admin_users WHERE id=? AND is_active=1",
+        (admin_id,),
     ).fetchone()
+    if admin is None or session.get("admin_auth_version") != admin["auth_version"]:
+        session.clear()
+        return None
+    return admin
 
 
 def require_admin(*roles: str):
@@ -841,6 +849,7 @@ def admin_login():
     session.clear()
     session.permanent = True
     session["admin_user_id"] = admin["id"]
+    session["admin_auth_version"] = admin["auth_version"]
     session["csrf_token"] = secrets.token_urlsafe(24)
     database.execute("UPDATE admin_users SET last_login_at=?, updated_at=? WHERE id=?", (utc_now(), utc_now(), admin["id"]))
     g.admin_user = admin
@@ -1331,8 +1340,8 @@ def admin_create_user():
     role = str(payload.get("role", "head"))
     if not re.fullmatch(r"[A-Za-z0-9._-]{4,80}", username):
         return jsonify({"error": "ชื่อผู้ใช้ต้องมี 4 ตัวขึ้นไป และใช้ตัวอักษรอังกฤษ ตัวเลข จุด ขีดกลาง หรือขีดล่าง"}), 400
-    if len(display_name) < 2 or len(password) < 12 or role not in ADMIN_ROLES:
-        return jsonify({"error": "กรุณากรอกชื่อ รหัสผ่านอย่างน้อย 12 ตัว และบทบาทให้ถูกต้อง"}), 400
+    if len(display_name) < 2 or len(password) < 8 or role not in ADMIN_ROLES:
+        return jsonify({"error": "กรุณากรอกชื่อ รหัสผ่านอย่างน้อย 8 ตัว และบทบาทให้ถูกต้อง"}), 400
     database = get_database()
     try:
         cursor = database.execute(
@@ -1344,6 +1353,69 @@ def admin_create_user():
     record_audit("create", "admin_user", cursor.lastrowid, {"role": role, "displayName": display_name})
     database.commit()
     return jsonify({"id": cursor.lastrowid}), 201
+
+
+@app.put("/api/admin/users/<int:user_id>")
+@require_admin("admin")
+def admin_update_user(user_id: int):
+    payload = request.get_json(silent=True) or {}
+    database = get_database()
+    target = database.execute("SELECT * FROM admin_users WHERE id=?", (user_id,)).fetchone()
+    if target is None:
+        return jsonify({"error": "ไม่พบบัญชีทีมงาน"}), 404
+    display_name = " ".join(str(payload.get("displayName", target["display_name"])).split())[:120]
+    role = str(payload.get("role", target["role"]))
+    is_active = bool(payload.get("isActive", target["is_active"]))
+    if len(display_name) < 2 or role not in ADMIN_ROLES:
+        return jsonify({"error": "ชื่อที่แสดงหรือบทบาทไม่ถูกต้อง"}), 400
+    if user_id == g.admin_user["id"] and not is_active:
+        return jsonify({"error": "ไม่สามารถปิดบัญชีที่กำลังใช้งานอยู่"}), 409
+    removes_active_admin = target["role"] == "admin" and target["is_active"] and (role != "admin" or not is_active)
+    if removes_active_admin:
+        active_admins = database.execute(
+            "SELECT COUNT(*) AS count FROM admin_users WHERE role='admin' AND is_active=1"
+        ).fetchone()["count"]
+        if active_admins <= 1:
+            return jsonify({"error": "ต้องมี Admin ที่เปิดใช้งานอย่างน้อย 1 บัญชี"}), 409
+    database.execute(
+        "UPDATE admin_users SET display_name=?, role=?, is_active=?, updated_at=? WHERE id=?",
+        (display_name, role, int(is_active), utc_now(), user_id),
+    )
+    record_audit("update", "admin_user", user_id, {
+        "displayName": display_name, "role": role, "isActive": is_active,
+    })
+    database.commit()
+    return jsonify({"ok": True})
+
+
+@app.post("/api/admin/users/<int:user_id>/password")
+@require_admin("admin")
+def admin_reset_user_password(user_id: int):
+    payload = request.get_json(silent=True) or {}
+    new_password = str(payload.get("newPassword", ""))
+    confirm_password = str(payload.get("confirmPassword", ""))
+    if len(new_password) < 8:
+        return jsonify({"error": "รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัว"}), 400
+    if new_password != confirm_password:
+        return jsonify({"error": "ยืนยันรหัสผ่านใหม่ไม่ตรงกัน"}), 400
+    database = get_database()
+    target = database.execute("SELECT id, username FROM admin_users WHERE id=?", (user_id,)).fetchone()
+    if target is None:
+        return jsonify({"error": "ไม่พบบัญชีทีมงาน"}), 404
+    database.execute(
+        """UPDATE admin_users SET password_hash=?, auth_version=auth_version+1,
+        is_active=1, updated_at=? WHERE id=?""",
+        (generate_password_hash(new_password), utc_now(), user_id),
+    )
+    database.execute(
+        "DELETE FROM login_throttle WHERE throttle_key NOT LIKE 'member|%' AND throttle_key LIKE ?",
+        (f"%|{target['username']}",),
+    )
+    record_audit("password_reset", "admin_user", user_id, {"username": target["username"]})
+    database.commit()
+    if user_id == g.admin_user["id"]:
+        session["admin_auth_version"] = g.admin_user["auth_version"] + 1
+    return jsonify({"ok": True})
 
 
 @app.get("/")

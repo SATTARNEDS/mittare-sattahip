@@ -280,6 +280,44 @@ class AdminWorkflowTest(unittest.TestCase):
         response = head_client.post("/api/admin/questions/1/publish", headers={"X-CSRF-Token": login.get_json()["csrfToken"]})
         self.assertEqual(response.status_code, 403)
 
+    def test_admin_can_manage_team_account_and_reset_password(self) -> None:
+        created = self.client.post(
+            "/api/admin/users", headers=self.headers,
+            json={"username": "managedhead", "displayName": "สมาชิกทีมทดสอบ", "password": "Initial-Password-123", "role": "head"},
+        )
+        self.assertEqual(created.status_code, 201)
+        user_id = created.get_json()["id"]
+        head_client = server.app.test_client()
+        head_login = head_client.post(
+            "/api/admin/login", json={"username": "managedhead", "password": "Initial-Password-123"}
+        )
+        self.assertEqual(head_login.status_code, 200)
+        changed = self.client.post(
+            f"/api/admin/users/{user_id}/password", headers=self.headers,
+            json={"newPassword": "Abcd1234", "confirmPassword": "Abcd1234"},
+        )
+        self.assertEqual(changed.status_code, 200)
+        self.assertEqual(head_client.get("/api/admin/me").status_code, 401)
+        self.assertEqual(head_client.post(
+            "/api/admin/login", json={"username": "managedhead", "password": "Initial-Password-123"}
+        ).status_code, 401)
+        self.assertEqual(head_client.post(
+            "/api/admin/login", json={"username": "managedhead", "password": "Abcd1234"}
+        ).status_code, 200)
+        paused = self.client.put(
+            f"/api/admin/users/{user_id}", headers=self.headers,
+            json={"displayName": "สมาชิกทีมทดสอบ", "role": "head", "isActive": False},
+        )
+        self.assertEqual(paused.status_code, 200)
+        self.assertEqual(head_client.get("/api/admin/me").status_code, 401)
+        self.assertEqual(head_client.post(
+            "/api/admin/login", json={"username": "managedhead", "password": "Abcd1234"}
+        ).status_code, 401)
+        self.assertEqual(self.client.put(
+            f"/api/admin/users/{self.client.get('/api/admin/me').get_json()['user']['id']}", headers=self.headers,
+            json={"displayName": "ผู้ดูแลทดสอบ", "role": "admin", "isActive": False},
+        ).status_code, 409)
+
 
 if __name__ == "__main__":
     unittest.main()
