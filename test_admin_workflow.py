@@ -112,6 +112,24 @@ class AdminWorkflowTest(unittest.TestCase):
         response = self.client.post("/api/admin/questions/1/pause")
         self.assertEqual(response.status_code, 403)
 
+    def test_admin_login_and_logout_preserve_member_session(self) -> None:
+        browser = server.app.test_client()
+        registered = browser.post("/api/members/register", json={
+            "displayName": "สมาชิกและแอดมิน", "username": "dual.session", "password": "Member123",
+        })
+        self.assertEqual(registered.status_code, 201)
+        admin_login = browser.post(
+            "/api/admin/login", json={"username": "testadmin", "password": "Strong-Test-Password-123"}
+        )
+        self.assertEqual(admin_login.status_code, 200)
+        self.assertEqual(browser.get("/api/members/me").status_code, 200)
+        admin_logout = browser.post(
+            "/api/admin/logout", headers={"X-CSRF-Token": admin_login.get_json()["csrfToken"]}
+        )
+        self.assertEqual(admin_logout.status_code, 200)
+        self.assertEqual(browser.get("/api/members/me").status_code, 200)
+        self.assertEqual(browser.get("/api/admin/me").status_code, 401)
+
     def test_admin_can_review_member_attempts_by_mode(self) -> None:
         member_client = server.app.test_client()
         username = f"learner{int(__import__('time').time_ns())}"

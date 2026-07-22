@@ -75,6 +75,7 @@ let examDurationSeconds = 0;
 let simulationRules = null;
 
 const $ = (id) => document.getElementById(id);
+let memberSessionReady = Promise.resolve(false);
 const shuffle = (items) => {
   const result = [...items];
   for (let i = result.length - 1; i > 0; i -= 1) {
@@ -135,9 +136,15 @@ function saveMember(result) {
 async function restoreMemberSession() {
   try {
     const response = await fetch("/exam/api/members/me", {credentials:"same-origin"});
-    if (!response.ok) return;
+    if (response.status === 401) {
+      saveState({user:null, attempts:0, answered:0, best:0, recentIds:[]});
+      updateDashboard();
+      return false;
+    }
+    if (!response.ok) return false;
     saveMember(await response.json());
-  } catch (error) { console.warn("ตรวจสอบสมาชิกไม่สำเร็จ", error); }
+    return true;
+  } catch (error) { console.warn("ตรวจสอบสมาชิกไม่สำเร็จ", error); return false; }
 }
 
 function showView(name) {
@@ -510,6 +517,7 @@ async function loginMember(event) {
 }
 
 async function openMemberDialog() {
+  await memberSessionReady;
   if (getState().user?.token) {
     const menu = $("account-menu");
     menu.hidden = !menu.hidden;
@@ -581,7 +589,11 @@ function renderMemberAttempt(attempt) {
 async function loadMyHistory(append = false) {
   const response = await fetch(`/exam/api/members/me/attempts?page=${memberHistoryState.page}&perPage=10`, {credentials:"same-origin"});
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || "โหลดประวัติไม่สำเร็จ");
+  if (!response.ok) {
+    const error = new Error(result.error || "โหลดประวัติไม่สำเร็จ");
+    error.status = response.status;
+    throw error;
+  }
   const list = $("member-history-list");
   const markup = result.attempts.map(renderMemberAttempt).join("");
   if (append) list.insertAdjacentHTML("beforeend", markup);
@@ -592,13 +604,32 @@ async function loadMyHistory(append = false) {
 }
 
 async function openMyHistory() {
+  await memberSessionReady;
+  if (!getState().user?.token) {
+    $("account-menu").hidden = true;
+    $("user-menu").setAttribute("aria-expanded", "false");
+    switchMemberTab("login");
+    $("user-dialog").showModal();
+    return;
+  }
   $("account-menu").hidden = true;
   $("user-menu").setAttribute("aria-expanded", "false");
   memberHistoryState.page = 1;
   $("member-history-list").innerHTML = '<p class="member-history-empty">กำลังโหลดประวัติ...</p>';
   $("member-history-dialog").showModal();
   try { await loadMyHistory(); }
-  catch (error) { $("member-history-list").innerHTML = `<p class="member-history-empty member-history-error">${escapeHtml(error.message)}</p>`; }
+  catch (error) {
+    if (error.status === 401) {
+      saveState({user:null, attempts:0, answered:0, best:0, recentIds:[]});
+      updateDashboard();
+      $("member-history-dialog").close();
+      switchMemberTab("login");
+      $("login-form-error").textContent = "เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง";
+      $("user-dialog").showModal();
+      return;
+    }
+    $("member-history-list").innerHTML = `<p class="member-history-empty member-history-error">${escapeHtml(error.message)}</p>`;
+  }
 }
 
 $("start-exam").addEventListener("click", startExam);
@@ -669,7 +700,7 @@ const initialState = getState();
 document.documentElement.dataset.theme = initialState.theme;
 $("theme-toggle").textContent = initialState.theme === "dark" ? "☀" : "☾";
 updateDashboard();
-restoreMemberSession();
+memberSessionReady = restoreMemberSession();
 loadTopics();
 loadLeaderboard();
 fetch("/exam/api/meta").then((response) => response.json()).then((meta) => {

@@ -351,6 +351,12 @@ def serialize_admin_question(row: sqlite3.Row) -> dict:
     return question
 
 
+def clear_admin_session() -> None:
+    """ล้างเฉพาะสิทธิ์หลังบ้าน โดยไม่ทำให้สมาชิกหน้าเว็บหลุดจากระบบ"""
+    for key in ("admin_user_id", "admin_auth_version", "csrf_token"):
+        session.pop(key, None)
+
+
 def current_admin() -> sqlite3.Row | None:
     admin_id = session.get("admin_user_id")
     if not admin_id:
@@ -360,7 +366,7 @@ def current_admin() -> sqlite3.Row | None:
         (admin_id,),
     ).fetchone()
     if admin is None or session.get("admin_auth_version") != admin["auth_version"]:
-        session.clear()
+        clear_admin_session()
         return None
     return admin
 
@@ -846,7 +852,7 @@ def admin_login():
         database.commit()
         return jsonify({"error": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"}), 401
     database.execute("DELETE FROM login_throttle WHERE throttle_key=?", (throttle_key,))
-    session.clear()
+    clear_admin_session()
     session.permanent = True
     session["admin_user_id"] = admin["id"]
     session["admin_auth_version"] = admin["auth_version"]
@@ -872,7 +878,7 @@ def admin_setup_status():
 def admin_logout():
     record_audit("logout", "admin_user", g.admin_user["id"])
     get_database().commit()
-    session.clear()
+    clear_admin_session()
     return jsonify({"loggedOut": True})
 
 
