@@ -576,6 +576,33 @@ def serialize_member(user: sqlite3.Row) -> dict:
     return {"id": user["id"], "displayName": user["display_name"], "username": user["username"], "teamName": user["team_name"]}
 
 
+def serialize_attempt(row: sqlite3.Row) -> dict:
+    item = dict(row)
+    try:
+        topic_scores = json.loads(item.pop("topic_scores_json"))
+    except (TypeError, json.JSONDecodeError):
+        topic_scores = {}
+        item.pop("topic_scores_json", None)
+    item["topicScores"] = topic_scores
+    percentage = round(item["score"] * 100 / item["total_questions"])
+    if item.get("exam_mode") == "simulation":
+        ethics = topic_scores.get(ETHICS_TOPIC, {}) if isinstance(topic_scores, dict) else {}
+        try:
+            ethics_score = int(ethics.get("correct", 0) or 0) if isinstance(ethics, dict) else 0
+        except (TypeError, ValueError):
+            ethics_score = 0
+        other_score = max(0, int(item["score"]) - ethics_score)
+        passed = ethics_score >= 14 and other_score >= 48
+        item["result"] = {"passed": passed, "label": "ผ่านเกณฑ์จำลองสอบ" if passed else "ไม่ผ่านเกณฑ์จำลองสอบ",
+                          "criteriaType": "simulation", "ethicsScore": ethics_score, "ethicsRequired": 14,
+                          "otherScore": other_score, "otherRequired": 48}
+    else:
+        passed = percentage >= 60
+        item["result"] = {"passed": passed, "label": "ถึงเกณฑ์ฝึกซ้อม" if passed else "ยังไม่ถึงเกณฑ์ฝึกซ้อม",
+                          "criteriaType": "practice", "percentage": percentage, "requiredPercentage": 60}
+    return item
+
+
 @app.post("/api/members/register")
 def register_member():
     payload = request.get_json(silent=True) or {}
@@ -677,15 +704,7 @@ def current_member_attempts():
         exam_mode, completed_at FROM attempts WHERE user_id=? ORDER BY completed_at DESC, id DESC LIMIT ? OFFSET ?""",
         (member_id, per_page, (page - 1) * per_page),
     ).fetchall()
-    attempts = []
-    for row in rows:
-        item = dict(row)
-        try:
-            item["topicScores"] = json.loads(item.pop("topic_scores_json"))
-        except (TypeError, json.JSONDecodeError):
-            item["topicScores"] = {}
-            item.pop("topic_scores_json", None)
-        attempts.append(item)
+    attempts = [serialize_attempt(row) for row in rows]
     return jsonify({"user": dict(user), "attempts": attempts, "pagination": {
         "page": page, "perPage": per_page, "totalItems": total_items, "totalPages": total_pages,
         "hasNext": page < total_pages,
@@ -1274,15 +1293,7 @@ def admin_member_attempts(member_id: int):
         exam_mode, completed_at FROM attempts WHERE user_id=? ORDER BY completed_at DESC, id DESC LIMIT ? OFFSET ?""",
         (member_id, per_page, (page - 1) * per_page),
     ).fetchall()
-    items = []
-    for row in attempts:
-        item = dict(row)
-        try:
-            item["topicScores"] = json.loads(item.pop("topic_scores_json"))
-        except (TypeError, json.JSONDecodeError):
-            item["topicScores"] = {}
-            item.pop("topic_scores_json", None)
-        items.append(item)
+    items = [serialize_attempt(row) for row in attempts]
     return jsonify({"member": dict(member), "attempts": items, "pagination": {
         "page": page, "perPage": per_page, "totalItems": total_items, "totalPages": total_pages,
         "hasNext": page < total_pages,

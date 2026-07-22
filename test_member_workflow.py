@@ -50,6 +50,8 @@ class MemberWorkflowTest(unittest.TestCase):
         self.assertEqual(history_data["pagination"]["totalItems"], 1)
         self.assertEqual(history_data["attempts"][0]["score"], 17)
         self.assertEqual(history_data["attempts"][0]["exam_mode"], "practice")
+        self.assertTrue(history_data["attempts"][0]["result"]["passed"])
+        self.assertEqual(history_data["attempts"][0]["result"]["requiredPercentage"], 60)
         self.assertEqual(client.get("/api/members/me/attempts?perPage=11").status_code, 400)
 
         updated = client.put("/api/members/me", json={

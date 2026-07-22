@@ -128,7 +128,7 @@ class AdminWorkflowTest(unittest.TestCase):
             "durationSeconds": 2400,
             "selectedTopic": "จำลองสอบจริง",
             "examMode": "simulation",
-            "topicScores": {"จรรยาบรรณ": {"correct": 16, "total": 20}},
+            "topicScores": {server.ETHICS_TOPIC: {"correct": 16, "total": 20}},
         })
         self.assertEqual(saved.status_code, 201)
 
@@ -145,7 +145,10 @@ class AdminWorkflowTest(unittest.TestCase):
         self.assertFalse(history_data["pagination"]["hasNext"])
         attempt = history_data["attempts"][0]
         self.assertEqual(attempt["exam_mode"], "simulation")
-        self.assertEqual(attempt["topicScores"]["จรรยาบรรณ"]["correct"], 16)
+        self.assertEqual(attempt["topicScores"][server.ETHICS_TOPIC]["correct"], 16)
+        self.assertTrue(attempt["result"]["passed"])
+        self.assertEqual(attempt["result"]["ethicsScore"], 16)
+        self.assertEqual(attempt["result"]["otherScore"], 62)
         self.assertEqual(self.client.get(f"/api/admin/members/{member['id']}/attempts?perPage=11").status_code, 400)
 
     def test_pdf_preview_and_import_as_drafts(self) -> None:
