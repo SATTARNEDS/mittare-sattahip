@@ -221,6 +221,14 @@ class AdminWorkflowTest(unittest.TestCase):
         self.assertTrue(all(row["explanation_source_url"].startswith("https://") for row in rows))
         self.assertTrue(all(row["explanation_review_status"] != "unreviewed" for row in rows))
 
+    def test_all_imported_explanations_have_context_and_official_sources(self) -> None:
+        with server.app.app_context():
+            rows = server.get_database().execute("SELECT * FROM questions").fetchall()
+        self.assertFalse(any(row["explanation"].startswith("ตามเฉลย") for row in rows))
+        reviewed = [row for row in rows if row["explanation_review_status"] != "unreviewed"]
+        self.assertEqual(len(reviewed), 980)
+        self.assertTrue(all(row["explanation_source_url"].startswith("https://") for row in reviewed))
+
     def test_environment_can_reset_existing_admin_password_and_unlock_login(self) -> None:
         new_password = "Reset-Test-Password-456"
         database = server.sqlite3.connect(server.DATABASE_PATH)

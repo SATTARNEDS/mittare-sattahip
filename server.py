@@ -18,6 +18,7 @@ from pypdf import PdfReader
 from extra_questions import EXTRA_QUESTIONS
 from pdf_questions_2567 import PDF_QUESTIONS_2567
 from explanation_improvements import apply_first_review_batch
+from remaining_explanation_improvements import apply_remaining_review_batch
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -255,10 +256,7 @@ def initialize_database() -> None:
         INSERT INTO questions(id, topic, question_text, options_json, correct_answer, explanation,
                               source_title, status, is_active, published_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, 'published', 1, CURRENT_TIMESTAMP)
-        ON CONFLICT(id) DO UPDATE SET topic=excluded.topic, question_text=excluded.question_text,
-            options_json=excluded.options_json, correct_answer=excluded.correct_answer,
-            explanation=excluded.explanation, source_title=excluded.source_title,
-            status='published', is_active=1
+        ON CONFLICT(id) DO NOTHING
         """,
         [(row["id"], row["topic"], row["q"], json.dumps(row["o"], ensure_ascii=False), row["a"], row["e"],
           AGENT_PDF_SOURCE_TITLE) for row in agent_ethics_rows],
@@ -283,6 +281,13 @@ def initialize_database() -> None:
             """INSERT INTO audit_logs(admin_user_id, action, entity_type, entity_id, details_json, ip_address)
             VALUES (NULL, 'explanation_batch_update', 'question_batch', 'first-200', ?, 'local-migration')""",
             (json.dumps({"updated": explanation_result["updated"]}, ensure_ascii=False),),
+        )
+    remaining_explanation_result = apply_remaining_review_batch(database, utc_now())
+    if remaining_explanation_result["updated"]:
+        database.execute(
+            """INSERT INTO audit_logs(admin_user_id, action, entity_type, entity_id, details_json, ip_address)
+            VALUES (NULL, 'explanation_batch_update', 'question_batch', 'remaining-780', ?, 'local-migration')""",
+            (json.dumps({"updated": remaining_explanation_result["updated"]}, ensure_ascii=False),),
         )
     bootstrap_username = os.environ.get("ADMIN_USERNAME", "").strip()
     bootstrap_password = os.environ.get("ADMIN_PASSWORD", "")
