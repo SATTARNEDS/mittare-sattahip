@@ -44,6 +44,13 @@ class MemberWorkflowTest(unittest.TestCase):
         profile = client.get("/api/members/me")
         self.assertEqual(profile.status_code, 200)
         self.assertEqual(profile.get_json()["summary"]["attempts"], 1)
+        history = client.get("/api/members/me/attempts")
+        self.assertEqual(history.status_code, 200)
+        history_data = history.get_json()
+        self.assertEqual(history_data["pagination"]["totalItems"], 1)
+        self.assertEqual(history_data["attempts"][0]["score"], 17)
+        self.assertEqual(history_data["attempts"][0]["exam_mode"], "practice")
+        self.assertEqual(client.get("/api/members/me/attempts?perPage=11").status_code, 400)
 
         updated = client.put("/api/members/me", json={
             "displayName": "สมาชิกแก้ไขแล้ว",
@@ -55,6 +62,7 @@ class MemberWorkflowTest(unittest.TestCase):
 
         self.assertEqual(client.post("/api/members/logout").status_code, 200)
         self.assertEqual(client.get("/api/members/me").status_code, 401)
+        self.assertEqual(client.get("/api/members/me/attempts").status_code, 401)
         login = client.post("/api/members/login", json={"username": "member.test", "password": "newstrongpass456"})
         self.assertEqual(login.status_code, 200)
         self.assertEqual(login.get_json()["user"]["displayName"], "สมาชิกแก้ไขแล้ว")

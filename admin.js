@@ -105,13 +105,15 @@ async function loadQuestions() {
 
 function renderQuestions() {
   const body = document.getElementById("questions-body");
-  body.innerHTML = state.questions.map(question => {
+  const firstItemOffset = (state.pagination.page - 1) * state.pagination.perPage;
+  body.innerHTML = state.questions.map((question, index) => {
     const actions = [`<button class="action-button" data-action="edit" data-id="${question.id}">แก้ไข</button>`, `<button class="action-button" data-action="history" data-id="${question.id}">ประวัติ</button>`];
     if (question.status === "draft") actions.push(`<button class="action-button" data-action="submit" data-id="${question.id}">ส่งตรวจ</button>`);
     if (question.status === "pending" && state.user.role === "admin") actions.push(`<button class="action-button" data-action="publish" data-id="${question.id}">อนุมัติ</button>`, `<button class="action-button danger" data-action="reject" data-id="${question.id}">ส่งกลับ</button>`);
     if (question.status === "published" && state.user.role === "admin") actions.push(`<button class="action-button danger" data-action="pause" data-id="${question.id}">ระงับ</button>`);
     if (question.status === "paused" && state.user.role === "admin") actions.push(`<button class="action-button" data-action="restore" data-id="${question.id}">กู้คืน</button>`);
-    return `<tr><td>${question.id}</td><td class="question-cell"><strong>${escapeHtml(question.q)}</strong><small>เฉลย: ${escapeHtml(question.a)}</small></td><td><span class="audience-tag audience-${question.audience}">${audienceLabels[question.audience] || escapeHtml(question.audience)}</span></td><td>${escapeHtml(question.topic)}</td><td><span class="badge badge-${question.status}">${statusLabels[question.status]}</span></td><td>${escapeHtml(formatDate(question.updatedAt))}</td><td><div class="row-actions">${actions.join("")}</div></td></tr>`;
+    const bankOrder = state.pagination.totalItems - firstItemOffset - index;
+    return `<tr><td><strong>${bankOrder}</strong><small class="question-id">ID ${question.id}</small></td><td class="question-cell"><strong>${escapeHtml(question.q)}</strong><small>เฉลย: ${escapeHtml(question.a)}</small></td><td><span class="audience-tag audience-${question.audience}">${audienceLabels[question.audience] || escapeHtml(question.audience)}</span></td><td>${escapeHtml(question.topic)}</td><td><span class="badge badge-${question.status}">${statusLabels[question.status]}</span></td><td>${escapeHtml(formatDate(question.updatedAt))}</td><td><div class="row-actions">${actions.join("")}</div></td></tr>`;
   }).join("");
   document.getElementById("questions-empty").hidden = state.questions.length > 0;
 }
@@ -242,6 +244,7 @@ document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", a
 }));
 
 const attemptModeLabels = {practice:"สุ่มทุกหมวด",topic:"ฝึกเฉพาะหมวด",simulation:"จำลองสอบจริง"};
+const memberAttemptState = {memberId:null,page:1,totalItems:0};
 
 async function loadMembers() {
   const search = document.getElementById("member-search").value.trim();
@@ -260,16 +263,39 @@ document.getElementById("members-body").addEventListener("click", async event =>
   const button = event.target.closest("[data-member-id]");
   if (!button) return;
   try {
-    const data = await api(`/exam/api/admin/members/${button.dataset.memberId}/attempts`);
+    memberAttemptState.memberId = button.dataset.memberId;
+    memberAttemptState.page = 1;
+    const data = await loadMemberAttempts(false);
     document.getElementById("member-history-title").textContent = data.member.display_name;
-    document.getElementById("member-history-summary").textContent = `${data.member.username ? `@${data.member.username} • ` : ""}${data.attempts.length} รอบ`;
-    document.getElementById("member-attempts-list").innerHTML = data.attempts.length ? data.attempts.map(attempt => {
-      const percentage = Math.round(attempt.score * 100 / attempt.total_questions);
-      const topicDetails = Object.entries(attempt.topicScores || {}).map(([topic, result]) => `${escapeHtml(topic)} ${Number(result.correct) || 0}/${Number(result.total) || 0}`).join(" • ");
-      return `<article class="attempt-card"><div><span class="badge badge-${percentage >= 60 ? "published" : "paused"}">${attemptModeLabels[attempt.exam_mode] || "ฝึกข้อสอบ"}</span><strong>${percentage}% <small>${attempt.score}/${attempt.total_questions} คะแนน</small></strong></div><dl><div><dt>ชุดที่ทำ</dt><dd>${escapeHtml(attempt.selected_topic)}</dd></div><div><dt>เวลา</dt><dd>${Math.floor(attempt.duration_seconds / 60)} นาที ${attempt.duration_seconds % 60} วินาที</dd></div><div><dt>วันที่</dt><dd>${escapeHtml(formatDate(attempt.completed_at))}</dd></div></dl>${topicDetails ? `<p>${topicDetails}</p>` : ""}</article>`;
-    }).join("") : "<p class=\"empty\">สมาชิกยังไม่เคยทำข้อสอบ</p>";
+    document.getElementById("member-history-summary").textContent = `${data.member.username ? `@${data.member.username} • ` : ""}${data.pagination.totalItems} รอบ`;
     document.getElementById("member-history-dialog").showModal();
   } catch (error) { showToast(error.message); }
+});
+
+function renderAttemptCard(attempt) {
+  const percentage = Math.round(attempt.score * 100 / attempt.total_questions);
+  const topicDetails = Object.entries(attempt.topicScores || {}).map(([topic, result]) => `<li><span>${escapeHtml(topic)}</span><strong>${Number(result.correct) || 0}/${Number(result.total) || 0}</strong></li>`).join("");
+  return `<details class="attempt-card"><summary><span class="attempt-summary-main"><span class="badge badge-${percentage >= 60 ? "published" : "paused"}">${attemptModeLabels[attempt.exam_mode] || "ฝึกข้อสอบ"}</span><span><strong>${percentage}%</strong><small>${attempt.score}/${attempt.total_questions} คะแนน</small></span></span><span class="attempt-summary-meta">${escapeHtml(formatDate(attempt.completed_at))}</span></summary><div class="attempt-detail"><dl><div><dt>ชุดที่ทำ</dt><dd>${escapeHtml(attempt.selected_topic)}</dd></div><div><dt>เวลา</dt><dd>${Math.floor(attempt.duration_seconds / 60)} นาที ${attempt.duration_seconds % 60} วินาที</dd></div></dl>${topicDetails ? `<h3>คะแนนแยกรายหมวด</h3><ul>${topicDetails}</ul>` : "<p>ไม่มีข้อมูลคะแนนแยกรายหมวด</p>"}</div></details>`;
+}
+
+async function loadMemberAttempts(append) {
+  const data = await api(`/exam/api/admin/members/${memberAttemptState.memberId}/attempts?page=${memberAttemptState.page}&perPage=10`);
+  memberAttemptState.totalItems = data.pagination.totalItems;
+  const list = document.getElementById("member-attempts-list");
+  const markup = data.attempts.map(renderAttemptCard).join("");
+  if (append) list.insertAdjacentHTML("beforeend", markup);
+  else list.innerHTML = markup || "<p class=\"empty\">สมาชิกยังไม่เคยทำข้อสอบ</p>";
+  const loadMore = document.getElementById("load-more-attempts");
+  loadMore.hidden = !data.pagination.hasNext;
+  loadMore.disabled = false;
+  return data;
+}
+
+document.getElementById("load-more-attempts").addEventListener("click", async event => {
+  event.currentTarget.disabled = true;
+  memberAttemptState.page += 1;
+  try { await loadMemberAttempts(true); }
+  catch (error) { memberAttemptState.page -= 1; event.currentTarget.disabled = false; showToast(error.message); }
 });
 
 document.getElementById("close-member-history").addEventListener("click", () => document.getElementById("member-history-dialog").close());

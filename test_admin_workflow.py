@@ -138,9 +138,13 @@ class AdminWorkflowTest(unittest.TestCase):
 
         history = self.client.get(f"/api/admin/members/{member['id']}/attempts")
         self.assertEqual(history.status_code, 200)
-        attempt = history.get_json()["attempts"][0]
+        history_data = history.get_json()
+        self.assertEqual(history_data["pagination"]["totalItems"], 1)
+        self.assertFalse(history_data["pagination"]["hasNext"])
+        attempt = history_data["attempts"][0]
         self.assertEqual(attempt["exam_mode"], "simulation")
         self.assertEqual(attempt["topicScores"]["จรรยาบรรณ"]["correct"], 16)
+        self.assertEqual(self.client.get(f"/api/admin/members/{member['id']}/attempts?perPage=11").status_code, 400)
 
     def test_environment_can_reset_existing_admin_password_and_unlock_login(self) -> None:
         new_password = "Reset-Test-Password-456"

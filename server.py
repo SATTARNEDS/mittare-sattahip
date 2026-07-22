@@ -590,6 +590,46 @@ def current_member():
     return jsonify({"user": serialize_member(user), "token": user["access_token"], "summary": dict(summary)})
 
 
+@app.get("/api/members/me/attempts")
+def current_member_attempts():
+    member_id = session.get("member_user_id")
+    if not member_id:
+        return jsonify({"error": "กรุณาเข้าสู่ระบบเพื่อดูประวัติ"}), 401
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = int(request.args.get("perPage", 10))
+    except (TypeError, ValueError):
+        return jsonify({"error": "ข้อมูลหน้าไม่ถูกต้อง"}), 400
+    if per_page not in {10, 20, 50}:
+        return jsonify({"error": "จำนวนรายการต่อหน้าไม่ถูกต้อง"}), 400
+    database = get_database()
+    user = database.execute("SELECT id, display_name, username FROM users WHERE id=?", (member_id,)).fetchone()
+    if user is None:
+        session.pop("member_user_id", None)
+        return jsonify({"error": "ไม่พบบัญชีสมาชิก"}), 401
+    total_items = database.execute("SELECT COUNT(*) AS count FROM attempts WHERE user_id=?", (member_id,)).fetchone()["count"]
+    total_pages = max(1, (total_items + per_page - 1) // per_page)
+    page = min(page, total_pages)
+    rows = database.execute(
+        """SELECT id, score, total_questions, duration_seconds, selected_topic, topic_scores_json,
+        exam_mode, completed_at FROM attempts WHERE user_id=? ORDER BY completed_at DESC, id DESC LIMIT ? OFFSET ?""",
+        (member_id, per_page, (page - 1) * per_page),
+    ).fetchall()
+    attempts = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["topicScores"] = json.loads(item.pop("topic_scores_json"))
+        except (TypeError, json.JSONDecodeError):
+            item["topicScores"] = {}
+            item.pop("topic_scores_json", None)
+        attempts.append(item)
+    return jsonify({"user": dict(user), "attempts": attempts, "pagination": {
+        "page": page, "perPage": per_page, "totalItems": total_items, "totalPages": total_pages,
+        "hasNext": page < total_pages,
+    }})
+
+
 @app.put("/api/members/me")
 def update_member():
     member_id = session.get("member_user_id")
@@ -1058,16 +1098,26 @@ def admin_members():
 @require_admin("admin")
 def admin_member_attempts(member_id: int):
     database = get_database()
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = int(request.args.get("perPage", 10))
+    except (TypeError, ValueError):
+        return jsonify({"error": "ข้อมูลหน้าไม่ถูกต้อง"}), 400
+    if per_page not in {10, 20, 50}:
+        return jsonify({"error": "จำนวนรายการต่อหน้าไม่ถูกต้อง"}), 400
     member = database.execute(
         "SELECT id, display_name, username, team_name, created_at, last_login_at FROM users WHERE id=?",
         (member_id,),
     ).fetchone()
     if member is None:
         return jsonify({"error": "ไม่พบสมาชิก"}), 404
+    total_items = database.execute("SELECT COUNT(*) AS count FROM attempts WHERE user_id=?", (member_id,)).fetchone()["count"]
+    total_pages = max(1, (total_items + per_page - 1) // per_page)
+    page = min(page, total_pages)
     attempts = database.execute(
         """SELECT id, score, total_questions, duration_seconds, selected_topic, topic_scores_json,
-        exam_mode, completed_at FROM attempts WHERE user_id=? ORDER BY completed_at DESC, id DESC LIMIT 300""",
-        (member_id,),
+        exam_mode, completed_at FROM attempts WHERE user_id=? ORDER BY completed_at DESC, id DESC LIMIT ? OFFSET ?""",
+        (member_id, per_page, (page - 1) * per_page),
     ).fetchall()
     items = []
     for row in attempts:
@@ -1078,7 +1128,10 @@ def admin_member_attempts(member_id: int):
             item["topicScores"] = {}
             item.pop("topic_scores_json", None)
         items.append(item)
-    return jsonify({"member": dict(member), "attempts": items})
+    return jsonify({"member": dict(member), "attempts": items, "pagination": {
+        "page": page, "perPage": per_page, "totalItems": total_items, "totalPages": total_pages,
+        "hasNext": page < total_pages,
+    }})
 
 
 @app.post("/api/admin/users")

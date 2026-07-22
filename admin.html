@@ -65,7 +65,7 @@
           <select id="topic-filter" aria-label="กรองหมวด"><option value="">ทุกหมวด</option></select>
           <button class="secondary" id="refresh-button" type="button">รีเฟรช</button>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>ข้อ</th><th>คำถาม</th><th>ประเภท</th><th>หมวด</th><th>สถานะ</th><th>แก้ล่าสุด</th><th><span class="sr-only">คำสั่ง</span></th></tr></thead><tbody id="questions-body"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>ลำดับ</th><th>คำถาม</th><th>ประเภท</th><th>หมวด</th><th>สถานะ</th><th>แก้ล่าสุด</th><th><span class="sr-only">คำสั่ง</span></th></tr></thead><tbody id="questions-body"></tbody></table></div>
         <p class="empty" id="questions-empty" hidden>ไม่พบข้อสอบตามเงื่อนไข</p>
         <nav class="pagination" aria-label="เปลี่ยนหน้ารายการข้อสอบ">
           <span id="pagination-summary">0 รายการ</span>
@@ -113,7 +113,7 @@
     </form>
   </dialog>
   <dialog id="history-dialog"><div class="dialog-header"><h2>ประวัติข้อสอบ</h2><button class="icon-button" id="close-history" type="button" aria-label="ปิด">×</button></div><div id="history-list" class="timeline"></div></dialog>
-  <dialog id="member-history-dialog"><div class="dialog-header"><div><p class="eyebrow">LEARNING RECORD</p><h2 id="member-history-title">ประวัติการทำข้อสอบ</h2><p id="member-history-summary"></p></div><button class="icon-button" id="close-member-history" type="button" aria-label="ปิด">×</button></div><div id="member-attempts-list" class="attempt-list"></div></dialog>
+  <dialog id="member-history-dialog"><div class="dialog-header"><div><p class="eyebrow">LEARNING RECORD</p><h2 id="member-history-title">ประวัติการทำข้อสอบ</h2><p id="member-history-summary"></p></div><button class="icon-button" id="close-member-history" type="button" aria-label="ปิด">×</button></div><p class="attempt-help">แตะหรือคลิกแต่ละรอบเพื่อดูเวลาและคะแนนแยกรายหมวด</p><div id="member-attempts-list" class="attempt-list"></div><button class="secondary load-more-attempts" id="load-more-attempts" type="button" hidden>แสดงประวัติเพิ่ม</button></dialog>
   <datalist id="topic-list"></datalist>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <script src="admin.js" defer></script>

@@ -552,6 +552,44 @@ async function updateMemberAccount(event) {
   } catch (error) { $("account-form-error").textContent = error.message; }
 }
 
+const memberHistoryState = {page:1};
+const memberAttemptModeLabels = {practice:"สุ่มทุกหมวด",topic:"ฝึกเฉพาะหมวด",simulation:"จำลองสอบจริง"};
+
+function formatAttemptDate(value) {
+  if (!value) return "—";
+  const normalized = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
+  return new Intl.DateTimeFormat("th-TH", {dateStyle:"medium",timeStyle:"short"}).format(new Date(normalized));
+}
+
+function renderMemberAttempt(attempt) {
+  const percentage = Math.round(attempt.score * 100 / attempt.total_questions);
+  const topics = Object.entries(attempt.topicScores || {}).map(([topic, result]) => `<li><span>${escapeHtml(topic)}</span><strong>${Number(result.correct) || 0}/${Number(result.total) || 0}</strong></li>`).join("");
+  return `<details class="member-attempt"><summary><span class="member-attempt__main"><span class="member-attempt__mode">${memberAttemptModeLabels[attempt.exam_mode] || "ฝึกข้อสอบ"}</span><span><strong>${percentage}%</strong><small>${attempt.score}/${attempt.total_questions} คะแนน</small></span></span><time>${escapeHtml(formatAttemptDate(attempt.completed_at))}</time></summary><div class="member-attempt__detail"><dl><div><dt>ชุดที่ทำ</dt><dd>${escapeHtml(attempt.selected_topic)}</dd></div><div><dt>เวลาที่ใช้</dt><dd>${Math.floor(attempt.duration_seconds / 60)} นาที ${attempt.duration_seconds % 60} วินาที</dd></div></dl>${topics ? `<h3>คะแนนแยกรายหมวด</h3><ul>${topics}</ul>` : "<p>รอบนี้ไม่มีข้อมูลคะแนนแยกรายหมวด</p>"}</div></details>`;
+}
+
+async function loadMyHistory(append = false) {
+  const response = await fetch(`/exam/api/members/me/attempts?page=${memberHistoryState.page}&perPage=10`, {credentials:"same-origin"});
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || "โหลดประวัติไม่สำเร็จ");
+  const list = $("member-history-list");
+  const markup = result.attempts.map(renderMemberAttempt).join("");
+  if (append) list.insertAdjacentHTML("beforeend", markup);
+  else list.innerHTML = markup || '<p class="member-history-empty">ยังไม่มีประวัติการทำข้อสอบ</p>';
+  $("member-history-summary").textContent = `${result.user.display_name} • ${result.pagination.totalItems} รอบ`;
+  $("member-history-more").hidden = !result.pagination.hasNext;
+  $("member-history-more").disabled = false;
+}
+
+async function openMyHistory() {
+  $("account-menu").hidden = true;
+  $("user-menu").setAttribute("aria-expanded", "false");
+  memberHistoryState.page = 1;
+  $("member-history-list").innerHTML = '<p class="member-history-empty">กำลังโหลดประวัติ...</p>';
+  $("member-history-dialog").showModal();
+  try { await loadMyHistory(); }
+  catch (error) { $("member-history-list").innerHTML = `<p class="member-history-empty member-history-error">${escapeHtml(error.message)}</p>`; }
+}
+
 $("start-exam").addEventListener("click", startExam);
 $("exam-topic").addEventListener("change", (event) => {
   $("start-exam").textContent = event.target.value ? "ฝึกหมวดที่เลือก" : "สุ่มฝึกทุกหมวด";
@@ -571,8 +609,16 @@ $("login-tab").addEventListener("click", () => switchMemberTab("login"));
 $("register-tab").addEventListener("click", () => switchMemberTab("register"));
 $("member-logout-button").addEventListener("click", logoutMember);
 $("manage-account-button").addEventListener("click", openAccountDialog);
+$("member-history-button").addEventListener("click", openMyHistory);
 $("account-form").addEventListener("submit", updateMemberAccount);
 $("close-account-dialog").addEventListener("click", () => $("account-dialog").close());
+$("close-member-history-dialog").addEventListener("click", () => $("member-history-dialog").close());
+$("member-history-more").addEventListener("click", async event => {
+  event.currentTarget.disabled = true;
+  memberHistoryState.page += 1;
+  try { await loadMyHistory(true); }
+  catch (error) { memberHistoryState.page -= 1; event.currentTarget.disabled = false; alert(error.message); }
+});
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".account-menu-wrap")) {
     $("account-menu").hidden = true;
