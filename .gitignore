@@ -4,6 +4,7 @@ __pycache__/
 data/*.sqlite3-shm
 data/*.sqlite3-wal
 data/*.sqlite3
+data/private-license-originals/
 mittare_site/instance/
 backups/
 .tools/

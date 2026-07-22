@@ -12,7 +12,7 @@ const profileData = {
   thepa: {
     name: "เทพา สารกาล",
     role: "ผู้จัดการฝ่ายขายและขยายงาน",
-    image: "assets/thepa.png",
+    image: "assets/thepa-redacted.png",
     summary: "เลขที่ใบอนุญาตผู้แนะนำการประกันวินาศภัย 6602003031 ",
     highlights: ["วางแผนความคุ้มครอง", "พัฒนาทีมงาน", "ประสานงานลูกค้า"],
     phone: "0924575836",
@@ -22,7 +22,7 @@ const profileData = {
   phannee: {
     name: "พรรณี สารกาล",
     role: "ผู้จัดการฝ่ายขายและขยายงาน",
-    image: "assets/pannee.png",
+    image: "assets/pannee-redacted.png",
     summary: "เลขที่ใบอนุญาตผู้แนะนำการประกันวินาศภัย 6602003361 ",
     highlights: ["ดูแลลูกค้า", "ประสานงานบริการ", "ให้คำปรึกษาเบื้องต้น"],
     phone: "0811759296",
