@@ -1,6 +1,6 @@
 "use strict";
 
-const state = { user: null, csrfToken: "", questions: [], topics: [], page: 1, pagination: null };
+const state = { user: null, csrfToken: "", questions: [], topics: [], page: 1, pagination: null, pdfQuestions: [], pdfFilename: "" };
 const statusLabels = { draft: "ฉบับร่าง", pending: "รอตรวจ", published: "เผยแพร่", paused: "ระงับ" };
 const audienceLabels = { agent: "ตัวแทน", general: "ความรู้ทั่วไป", broker: "นายหน้า" };
 const actionLabels = { created: "สร้าง", updated: "แก้ไข", submitted: "ส่งตรวจ", published: "เผยแพร่", rejected: "ส่งกลับแก้ไข", paused: "ระงับ", restored: "กู้คืน" };
@@ -303,6 +303,84 @@ document.getElementById("load-more-attempts").addEventListener("click", async ev
 });
 
 document.getElementById("close-member-history").addEventListener("click", () => document.getElementById("member-history-dialog").close());
+
+function openPdfImport() {
+  document.getElementById("pdf-upload-form").reset();
+  document.getElementById("pdf-preview").hidden = true;
+  document.getElementById("pdf-upload-message").textContent = "";
+  document.getElementById("pdf-import-message").textContent = "";
+  document.getElementById("pdf-import-dialog").showModal();
+}
+
+function renderPdfPreview() {
+  const readyCount = state.pdfQuestions.filter(question => question.ready).length;
+  document.getElementById("pdf-preview-summary").textContent = `พบ ${state.pdfQuestions.length} ข้อ • พร้อมนำเข้า ${readyCount} ข้อ`;
+  document.getElementById("pdf-preview-source").textContent = state.pdfFilename;
+  document.getElementById("pdf-question-preview").innerHTML = state.pdfQuestions.map((question, index) => {
+    const options = [...(question.o || [])];
+    while (options.length < 4) options.push("");
+    const duplicate = Boolean(question.duplicateId);
+    const warnings = question.warnings?.length ? `<ul>${question.warnings.map(warning => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>` : "<p>ข้อมูลครบ พร้อมนำเข้า</p>";
+    return `<article class="pdf-preview-card ${question.ready ? "is-ready" : "has-warning"}" data-pdf-index="${index}"><header><label class="pdf-select-question"><input type="checkbox" ${question.ready ? "checked" : ""} ${duplicate ? "disabled" : ""}><span>ข้อ ${question.sourceNumber || index + 1}</span></label><span class="pdf-read-status">${question.ready ? "พร้อม" : "ต้องตรวจ"}</span></header><label>คำถาม<textarea data-field="q" rows="2">${escapeHtml(question.q)}</textarea></label><fieldset><legend>ตัวเลือกและคำตอบที่ถูก</legend>${options.map((option, optionIndex) => `<label class="pdf-option"><input type="radio" name="pdf-answer-${index}" value="${optionIndex}" ${question.a === option && option ? "checked" : ""}><span>${String.fromCharCode(65 + optionIndex)}</span><input data-option="${optionIndex}" value="${escapeHtml(option)}" aria-label="ตัวเลือก ${optionIndex + 1}"></label>`).join("")}</fieldset><label>คำอธิบายเฉลย<textarea data-field="e" rows="2">${escapeHtml(question.e)}</textarea></label><div class="pdf-warnings">${warnings}</div></article>`;
+  }).join("");
+  document.getElementById("pdf-preview").hidden = false;
+}
+
+document.getElementById("pdf-import-button").addEventListener("click", openPdfImport);
+document.getElementById("close-pdf-import").addEventListener("click", () => document.getElementById("pdf-import-dialog").close());
+document.getElementById("pdf-upload-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector("button[type=submit]");
+  const message = document.getElementById("pdf-upload-message");
+  button.disabled = true; button.textContent = "กำลังอ่าน PDF..."; message.textContent = "";
+  try {
+    const response = await fetch("/exam/api/admin/pdf-import/preview", {method:"POST",credentials:"same-origin",headers:{"X-CSRF-Token":state.csrfToken},body:new FormData(event.currentTarget)});
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "อ่าน PDF ไม่สำเร็จ");
+    state.pdfQuestions = result.questions;
+    state.pdfFilename = result.filename;
+    renderPdfPreview();
+    if (result.truncated) message.textContent = "ไฟล์มีข้อสอบจำนวนมาก ระบบแสดงสูงสุด 500 ข้อต่อครั้ง";
+  } catch (error) { message.textContent = error.message; }
+  finally { button.disabled = false; button.textContent = "อ่านและแสดงตัวอย่าง"; }
+});
+
+document.getElementById("toggle-ready-questions").addEventListener("click", () => {
+  document.querySelectorAll(".pdf-select-question input:not(:disabled)").forEach(checkbox => { checkbox.checked = true; });
+});
+
+document.getElementById("commit-pdf-import").addEventListener("click", async event => {
+  const topic = document.getElementById("pdf-topic").value.trim();
+  const message = document.getElementById("pdf-import-message");
+  if (!topic) { message.textContent = "กรุณาเลือกหรือกรอกหมวดข้อสอบ"; document.getElementById("pdf-topic").focus(); return; }
+  const selected = [...document.querySelectorAll(".pdf-preview-card")].filter(card => card.querySelector(".pdf-select-question input").checked).map(card => {
+    const index = Number(card.dataset.pdfIndex);
+    const options = [...card.querySelectorAll("[data-option]")].map(input => input.value.trim());
+    const answerIndex = Number(card.querySelector('input[type="radio"]:checked')?.value ?? -1);
+    return {sourceNumber:state.pdfQuestions[index].sourceNumber,q:card.querySelector('[data-field="q"]').value.trim(),o:options,a:options[answerIndex] || "",e:card.querySelector('[data-field="e"]').value.trim(),topic,audience:document.getElementById("pdf-audience").value,difficulty:document.getElementById("pdf-difficulty").value,examFrequency:"medium",sourceTitle:state.pdfFilename};
+  });
+  if (!selected.length) { message.textContent = "กรุณาเลือกข้อสอบอย่างน้อย 1 ข้อ"; return; }
+  event.currentTarget.disabled = true; event.currentTarget.textContent = "กำลังนำเข้า..."; message.textContent = "";
+  try {
+    let importedCount = 0;
+    let rejectedCount = 0;
+    const batches = [];
+    for (let start = 0; start < selected.length; start += 200) batches.push(selected.slice(start, start + 200));
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+      event.currentTarget.textContent = `กำลังนำเข้าชุด ${batchIndex + 1}/${batches.length}...`;
+      const response = await fetch("/exam/api/admin/pdf-import/commit", {method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-CSRF-Token":state.csrfToken},body:JSON.stringify({sourceTitle:state.pdfFilename,questions:batches[batchIndex]})});
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok && !result.imported?.length) throw new Error(result.error || result.errors?.[0]?.error || `นำเข้าชุด ${batchIndex + 1} ไม่สำเร็จ`);
+      importedCount += result.imported?.length || 0;
+      rejectedCount += result.errors?.length || 0;
+    }
+    showToast(`นำเข้า ${importedCount} ข้อเป็นฉบับร่าง${rejectedCount ? ` • ไม่ผ่าน ${rejectedCount} ข้อ` : ""}`);
+    document.getElementById("pdf-import-dialog").close();
+    state.page = 1;
+    await refreshWorkspace();
+  } catch (error) { message.textContent = error.message; }
+  finally { event.currentTarget.disabled = false; event.currentTarget.textContent = "นำข้อที่เลือกเข้าเป็นฉบับร่าง"; }
+});
 
 async function loadUsers() {
   const users = await api("/exam/api/admin/users");

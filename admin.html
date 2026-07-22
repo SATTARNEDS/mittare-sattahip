@@ -40,7 +40,7 @@
     <main id="main-content">
       <section class="page-heading">
         <div><p class="eyebrow">ADMIN WORKSPACE</p><h1>จัดการและตรวจข้อสอบ</h1><p>ข้อสอบใหม่จะเป็นฉบับร่างและไม่ถูกสุ่มจนกว่า Admin จะอนุมัติ</p></div>
-        <button class="primary" id="new-question-button" type="button">+ เพิ่มข้อสอบ</button>
+        <div class="heading-actions"><button class="secondary" id="pdf-import-button" type="button">นำเข้าจาก PDF</button><button class="primary" id="new-question-button" type="button">+ เพิ่มข้อสอบ</button></div>
       </section>
 
       <section class="stats" aria-label="สรุปสถานะ">
@@ -118,6 +118,19 @@
   </dialog>
   <dialog id="history-dialog"><div class="dialog-header"><h2>ประวัติข้อสอบ</h2><button class="icon-button" id="close-history" type="button" aria-label="ปิด">×</button></div><div id="history-list" class="timeline"></div></dialog>
   <dialog id="member-history-dialog"><div class="dialog-header"><div><p class="eyebrow">LEARNING RECORD</p><h2 id="member-history-title">ประวัติการทำข้อสอบ</h2><p id="member-history-summary"></p></div><button class="icon-button" id="close-member-history" type="button" aria-label="ปิด">×</button></div><p class="attempt-help">แตะหรือคลิกแต่ละรอบเพื่อดูเวลาและคะแนนแยกรายหมวด</p><div id="member-attempts-list" class="attempt-list"></div><button class="secondary load-more-attempts" id="load-more-attempts" type="button" hidden>แสดงประวัติเพิ่ม</button></dialog>
+  <dialog id="pdf-import-dialog" class="pdf-import-dialog">
+    <div class="dialog-header"><div><p class="eyebrow">PDF IMPORT</p><h2>นำเข้าข้อสอบจาก PDF</h2><p>ระบบจะสร้างเป็นฉบับร่างเท่านั้น กรุณาตรวจคำถามและเฉลยก่อนนำเข้า</p></div><button class="icon-button" id="close-pdf-import" type="button" aria-label="ปิด">×</button></div>
+    <form id="pdf-upload-form" class="pdf-upload-form">
+      <label class="pdf-dropzone" for="pdf-file"><strong>เลือกไฟล์ PDF</strong><span>ไฟล์ข้อความ ไม่เกิน 25 MB, 300 หน้า และ 500 ข้อ</span><input id="pdf-file" name="pdf" type="file" accept="application/pdf,.pdf" required></label>
+      <button class="primary" type="submit">อ่านและแสดงตัวอย่าง</button><p class="form-message" id="pdf-upload-message" role="alert"></p>
+    </form>
+    <section id="pdf-preview" hidden>
+      <div class="pdf-import-settings"><label>ประเภทคลัง<select id="pdf-audience"><option value="agent">ตัวแทน</option><option value="general">ความรู้ทั่วไป</option><option value="broker">นายหน้า</option></select></label><label>หมวดข้อสอบ<input id="pdf-topic" list="topic-list" required placeholder="เลือกหรือพิมพ์หมวด"></label><label>ระดับ<select id="pdf-difficulty"><option value="medium">ปานกลาง</option><option value="easy">ง่าย</option><option value="hard">ยาก</option></select></label></div>
+      <div class="pdf-preview-toolbar"><div><strong id="pdf-preview-summary"></strong><span id="pdf-preview-source"></span></div><button class="secondary" id="toggle-ready-questions" type="button">เลือกข้อที่พร้อมทั้งหมด</button></div>
+      <div id="pdf-question-preview" class="pdf-question-preview"></div>
+      <div class="pdf-import-footer"><p class="form-message" id="pdf-import-message" role="alert"></p><button class="primary" id="commit-pdf-import" type="button">นำข้อที่เลือกเข้าเป็นฉบับร่าง</button></div>
+    </section>
+  </dialog>
   <datalist id="topic-list"></datalist>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <script src="admin.js" defer></script>

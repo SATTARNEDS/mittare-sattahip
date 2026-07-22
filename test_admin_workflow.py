@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import os
+import io
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 TEMP_DIRECTORY = tempfile.TemporaryDirectory()
 os.environ["DATABASE_PATH"] = str(Path(TEMP_DIRECTORY.name) / "test.sqlite3")
@@ -145,6 +147,64 @@ class AdminWorkflowTest(unittest.TestCase):
         self.assertEqual(attempt["exam_mode"], "simulation")
         self.assertEqual(attempt["topicScores"]["จรรยาบรรณ"]["correct"], 16)
         self.assertEqual(self.client.get(f"/api/admin/members/{member['id']}/attempts?perPage=11").status_code, 400)
+
+    def test_pdf_preview_and_import_as_drafts(self) -> None:
+        self.assertEqual(server.PDF_IMPORT_MAX_BYTES, 25 * 1024 * 1024)
+        self.assertEqual(server.PDF_IMPORT_MAX_PAGES, 300)
+        self.assertEqual(server.PDF_IMPORT_MAX_QUESTIONS, 500)
+        extracted_text = """ข้อ 1. การประกันภัยมีประโยชน์สำคัญอย่างไร
+ก. ช่วยกระจายความเสี่ยง
+ข. ทำให้ไม่เกิดอุบัติเหตุ
+ค. ทำให้ทรัพย์สินมีราคาเพิ่ม
+ง. ยกเลิกกฎหมายทั้งหมด
+เฉลย: ก
+คำอธิบาย: การประกันภัยช่วยเฉลี่ยและกระจายความเสียหายระหว่างสมาชิก
+
+ข้อ 2. ผู้เอาประกันภัยควรปฏิบัติอย่างไร
+ก. ปกปิดข้อเท็จจริง
+ข. เปิดเผยข้อความจริงที่สำคัญ
+ค. ไม่อ่านกรมธรรม์
+ง. แจ้งข้อมูลเท็จ
+เฉลย: ข
+คำอธิบาย: ผู้เอาประกันภัยต้องเปิดเผยข้อความจริงซึ่งเป็นสาระสำคัญ
+"""
+
+        class FakePage:
+            def extract_text(self):
+                return extracted_text
+
+        class FakeReader:
+            is_encrypted = False
+            pages = [FakePage()]
+
+        with patch.object(server, "PdfReader", return_value=FakeReader()):
+            preview = self.client.post(
+                "/api/admin/pdf-import/preview",
+                data={"pdf": (io.BytesIO(b"%PDF-1.7 test"), "test-questions.pdf")},
+                headers=self.headers,
+                content_type="multipart/form-data",
+            )
+        self.assertEqual(preview.status_code, 200)
+        preview_data = preview.get_json()
+        self.assertEqual(len(preview_data["questions"]), 2)
+        self.assertTrue(all(question["ready"] for question in preview_data["questions"]))
+
+        questions = []
+        for question in preview_data["questions"]:
+            questions.append({**question, "topic": "หมวดนำเข้า PDF", "audience": "agent",
+                              "difficulty": "medium", "examFrequency": "medium"})
+        imported = self.client.post(
+            "/api/admin/pdf-import/commit",
+            json={"sourceTitle": preview_data["filename"], "questions": questions},
+            headers=self.headers,
+        )
+        self.assertEqual(imported.status_code, 201)
+        result = imported.get_json()
+        self.assertEqual(len(result["imported"]), 2)
+        for item in result["imported"]:
+            detail = self.client.get(f"/api/admin/questions/{item['id']}").get_json()
+            self.assertEqual(detail["status"], "draft")
+            self.assertFalse(detail["isActive"])
 
     def test_environment_can_reset_existing_admin_password_and_unlock_login(self) -> None:
         new_password = "Reset-Test-Password-456"

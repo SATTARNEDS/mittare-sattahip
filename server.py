@@ -8,10 +8,12 @@ import sqlite3
 import time
 from datetime import datetime, timezone
 from functools import wraps
+from io import BytesIO
 from pathlib import Path
 
 from flask import Flask, g, jsonify, request, send_from_directory, session
 from werkzeug.security import check_password_hash, generate_password_hash
+from pypdf import PdfReader
 
 from extra_questions import EXTRA_QUESTIONS
 from pdf_questions_2567 import PDF_QUESTIONS_2567
@@ -47,6 +49,9 @@ SIMULATION_SECTIONS = (
     ("พ.ร.บ.ประกันวินาศภัย", "พระราชบัญญัติประกันวินาศภัย", 10, None, None),
 )
 ADMIN_ROLES = {"head", "admin"}
+PDF_IMPORT_MAX_BYTES = 25 * 1024 * 1024
+PDF_IMPORT_MAX_PAGES = 300
+PDF_IMPORT_MAX_QUESTIONS = 500
 
 
 def get_database() -> sqlite3.Connection:
@@ -404,6 +409,63 @@ def validate_question_payload(payload: dict) -> tuple[dict | None, str | None]:
         "sourceUrl": source_url,
         "verifiedAt": str(payload.get("verifiedAt", "")).strip()[:10] or None,
     }, None
+
+
+def parse_pdf_question_text(text: str, source_title: str) -> list[dict]:
+    """แยกข้อสอบรูปแบบ ข้อ 1 / ก. ข. ค. ง. / เฉลย จากข้อความใน PDF"""
+    normalized = str(text or "").replace("\r", "\n")
+    normalized = re.sub(r"[ \t]+", " ", normalized)
+    normalized = re.sub(r"\n{3,}", "\n\n", normalized)
+    question_pattern = re.compile(r"(?m)^\s*(?:ข้อ\s*)?(\d{1,5})\s*[.)]\s*(.+?)\s*$")
+    matches = list(question_pattern.finditer(normalized))
+    results = []
+    option_pattern = re.compile(r"(?m)^\s*([กขคง]|[A-Da-d]|[1-4])\s*[.)]\s*(.+?)\s*$")
+    answer_pattern = re.compile(r"(?im)^\s*(?:เฉลย|คำตอบ)\s*[:：]?\s*([กขคง]|[A-Da-d]|[1-4]|.+?)\s*$")
+    explanation_pattern = re.compile(r"(?im)^\s*(?:คำอธิบาย|อธิบาย|เหตุผล)\s*[:：]\s*(.+?)\s*$")
+    key_order = {"ก": 0, "ข": 1, "ค": 2, "ง": 3, "A": 0, "B": 1, "C": 2, "D": 3,
+                 "1": 0, "2": 1, "3": 2, "4": 3}
+    for index, match in enumerate(matches[:PDF_IMPORT_MAX_QUESTIONS]):
+        block_end = matches[index + 1].start() if index + 1 < len(matches) else len(normalized)
+        block = normalized[match.end():block_end]
+        option_matches = list(option_pattern.finditer(block))
+        options = []
+        for option_index, option_match in enumerate(option_matches[:4]):
+            end_candidates = [len(block)]
+            if option_index + 1 < len(option_matches):
+                end_candidates.append(option_matches[option_index + 1].start())
+            answer_match_after = answer_pattern.search(block, option_match.end())
+            explanation_match_after = explanation_pattern.search(block, option_match.end())
+            if answer_match_after:
+                end_candidates.append(answer_match_after.start())
+            if explanation_match_after:
+                end_candidates.append(explanation_match_after.start())
+            continuation = block[option_match.end():min(end_candidates)]
+            options.append(" ".join(f"{option_match.group(2)} {continuation}".split())[:500])
+        question_continuation_end = option_matches[0].start() if option_matches else len(block)
+        question = " ".join(f"{match.group(2)} {block[:question_continuation_end]}".split())[:1000]
+        answer_match = answer_pattern.search(block)
+        answer_value = answer_match.group(1).strip() if answer_match else ""
+        answer_index = key_order.get(answer_value.upper() if answer_value.isascii() else answer_value)
+        answer = options[answer_index] if answer_index is not None and answer_index < len(options) else ""
+        if not answer and answer_value:
+            answer_normalized = " ".join(answer_value.split())
+            answer = next((option for option in options if option == answer_normalized or option.startswith(answer_normalized)), "")
+        explanation_match = explanation_pattern.search(block)
+        explanation = " ".join(explanation_match.group(1).split())[:2000] if explanation_match else ""
+        warnings = []
+        if len(question) < 10:
+            warnings.append("อ่านข้อความคำถามไม่ครบ")
+        if len(options) != 4 or any(not option for option in options):
+            warnings.append("ต้องมีตัวเลือกครบ 4 ตัว")
+        if not answer:
+            warnings.append("ไม่พบเฉลยที่ตรงกับตัวเลือก")
+        if len(explanation) < 10:
+            warnings.append("ไม่พบคำอธิบายเฉลยอย่างน้อย 10 ตัวอักษร")
+        results.append({
+            "sourceNumber": int(match.group(1)), "q": question, "o": options, "a": answer,
+            "e": explanation, "sourceTitle": source_title, "warnings": warnings,
+        })
+    return results
 
 
 @app.get("/api/meta")
@@ -874,6 +936,99 @@ def admin_question_detail(question_id: int):
     if row is None:
         return jsonify({"error": "ไม่พบข้อสอบ"}), 404
     return jsonify(serialize_admin_question(row))
+
+
+@app.post("/api/admin/pdf-import/preview")
+@require_admin()
+def admin_pdf_import_preview():
+    uploaded = request.files.get("pdf")
+    if uploaded is None or not uploaded.filename:
+        return jsonify({"error": "กรุณาเลือกไฟล์ PDF"}), 400
+    filename = re.sub(r"[^0-9A-Za-zก-๙._ -]", "_", Path(uploaded.filename).name).strip()[:200]
+    if not filename.lower().endswith(".pdf"):
+        return jsonify({"error": "รองรับเฉพาะไฟล์นามสกุล .pdf"}), 400
+    content = uploaded.stream.read(PDF_IMPORT_MAX_BYTES + 1)
+    if len(content) > PDF_IMPORT_MAX_BYTES:
+        return jsonify({"error": "ไฟล์ PDF ต้องมีขนาดไม่เกิน 25 MB"}), 413
+    if not content.startswith(b"%PDF-"):
+        return jsonify({"error": "ไฟล์นี้ไม่ใช่ PDF ที่ถูกต้อง"}), 400
+    try:
+        reader = PdfReader(BytesIO(content), strict=False)
+        if reader.is_encrypted:
+            return jsonify({"error": "ไม่รองรับ PDF ที่มีรหัสผ่าน"}), 400
+        if len(reader.pages) > PDF_IMPORT_MAX_PAGES:
+            return jsonify({"error": f"PDF ต้องมีไม่เกิน {PDF_IMPORT_MAX_PAGES} หน้า"}), 413
+        page_texts = []
+        for page in reader.pages:
+            page_texts.append(page.extract_text() or "")
+    except Exception:
+        return jsonify({"error": "ไม่สามารถอ่านข้อความจาก PDF นี้ได้ กรุณาตรวจว่าไฟล์ไม่เสียหาย"}), 400
+    extracted_text = "\n\n".join(page_texts).strip()
+    if len(extracted_text) < 40:
+        return jsonify({"error": "PDF นี้เป็นไฟล์สแกนหรือไม่มีข้อความ กรุณา OCR ภาษาไทยก่อนนำเข้า"}), 422
+    questions = parse_pdf_question_text(extracted_text, filename)
+    if not questions:
+        return jsonify({"error": "ไม่พบรูปแบบข้อสอบ กรุณาใช้เลขข้อและตัวเลือก ก. ข. ค. ง. พร้อมบรรทัด เฉลย:"}), 422
+    database = get_database()
+    for question in questions:
+        duplicate = database.execute("SELECT id FROM questions WHERE question_text=?", (question["q"],)).fetchone()
+        question["duplicateId"] = duplicate["id"] if duplicate else None
+        if duplicate:
+            question["warnings"].append(f"ซ้ำกับ ID {duplicate['id']} ในคลัง")
+        question["ready"] = not question["warnings"]
+    record_audit("preview", "pdf_import", filename, {"pages": len(reader.pages), "questions": len(questions)})
+    database.commit()
+    return jsonify({"filename": filename, "pageCount": len(reader.pages), "questions": questions,
+                    "truncated": len(questions) >= PDF_IMPORT_MAX_QUESTIONS})
+
+
+@app.post("/api/admin/pdf-import/commit")
+@require_admin()
+def admin_pdf_import_commit():
+    payload = request.get_json(silent=True) or {}
+    questions = payload.get("questions")
+    if not isinstance(questions, list) or not questions:
+        return jsonify({"error": "กรุณาเลือกข้อสอบอย่างน้อย 1 ข้อ"}), 400
+    if len(questions) > 200:
+        return jsonify({"error": "นำเข้าได้สูงสุดครั้งละ 200 ข้อ"}), 400
+    database = get_database()
+    next_id = database.execute("SELECT COALESCE(MAX(id), 0) + 1 AS id FROM questions").fetchone()["id"]
+    imported = []
+    errors = []
+    seen_questions = set()
+    now = utc_now()
+    for position, payload_question in enumerate(questions, start=1):
+        cleaned, error = validate_question_payload(payload_question if isinstance(payload_question, dict) else {})
+        source_number = payload_question.get("sourceNumber", position) if isinstance(payload_question, dict) else position
+        if error:
+            errors.append({"sourceNumber": source_number, "error": error})
+            continue
+        normalized_question = cleaned["q"].casefold()
+        if normalized_question in seen_questions:
+            errors.append({"sourceNumber": source_number, "error": "คำถามซ้ำภายในชุดนำเข้า"})
+            continue
+        duplicate = database.execute("SELECT id FROM questions WHERE question_text=?", (cleaned["q"],)).fetchone()
+        if duplicate:
+            errors.append({"sourceNumber": source_number, "error": f"ซ้ำกับ ID {duplicate['id']} ในคลัง"})
+            continue
+        database.execute(
+            """INSERT INTO questions(id, topic, question_text, options_json, correct_answer, explanation,
+            status, is_active, difficulty, exam_frequency, source_title, source_url, verified_at, audience,
+            created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'draft', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (next_id, cleaned["topic"], cleaned["q"], json.dumps(cleaned["o"], ensure_ascii=False), cleaned["a"],
+             cleaned["e"], cleaned["difficulty"], cleaned["examFrequency"], cleaned["sourceTitle"],
+             cleaned["sourceUrl"], cleaned["verifiedAt"], cleaned["audience"], g.admin_user["id"], now, now),
+        )
+        save_question_version(next_id, "created", g.admin_user["id"])
+        imported.append({"id": next_id, "sourceNumber": source_number})
+        seen_questions.add(normalized_question)
+        next_id += 1
+    record_audit("import", "pdf_import", payload.get("sourceTitle", "PDF"),
+                 {"imported": len(imported), "rejected": len(errors)})
+    database.commit()
+    status_code = 201 if imported else 400
+    return jsonify({"imported": imported, "errors": errors, "status": "draft"}), status_code
 
 
 @app.post("/api/admin/questions")
