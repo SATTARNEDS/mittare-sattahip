@@ -17,6 +17,7 @@ from pypdf import PdfReader
 
 from extra_questions import EXTRA_QUESTIONS
 from pdf_questions_2567 import PDF_QUESTIONS_2567
+from explanation_improvements import apply_first_review_batch
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -197,6 +198,10 @@ def initialize_database() -> None:
         "approved_by": "INTEGER REFERENCES admin_users(id)",
         "published_at": "TEXT",
         "audience": "TEXT NOT NULL DEFAULT 'general'",
+        "explanation_source_title": "TEXT NOT NULL DEFAULT ''",
+        "explanation_source_url": "TEXT NOT NULL DEFAULT ''",
+        "explanation_verified_at": "TEXT",
+        "explanation_review_status": "TEXT NOT NULL DEFAULT 'unreviewed'",
     })
     ensure_columns(database, "users", {
         "username": "TEXT COLLATE NOCASE",
@@ -272,6 +277,13 @@ def initialize_database() -> None:
         (AGENT_PDF_SOURCE_TITLE,),
     )
     database.execute("CREATE INDEX IF NOT EXISTS idx_questions_audience_status ON questions(audience, status, is_active)")
+    explanation_result = apply_first_review_batch(database, utc_now())
+    if explanation_result["updated"]:
+        database.execute(
+            """INSERT INTO audit_logs(admin_user_id, action, entity_type, entity_id, details_json, ip_address)
+            VALUES (NULL, 'explanation_batch_update', 'question_batch', 'first-200', ?, 'local-migration')""",
+            (json.dumps({"updated": explanation_result["updated"]}, ensure_ascii=False),),
+        )
     bootstrap_username = os.environ.get("ADMIN_USERNAME", "").strip()
     bootstrap_password = os.environ.get("ADMIN_PASSWORD", "")
     if bootstrap_username and len(bootstrap_password) >= 12:
@@ -309,6 +321,10 @@ def serialize_question(row: sqlite3.Row) -> dict:
     return {
         "id": row["id"], "topic": row["topic"], "q": row["question_text"],
         "o": json.loads(row["options_json"]), "a": row["correct_answer"], "e": row["explanation"],
+        "explanationSourceTitle": row["explanation_source_title"],
+        "explanationSourceUrl": row["explanation_source_url"],
+        "explanationVerifiedAt": row["explanation_verified_at"],
+        "explanationReviewStatus": row["explanation_review_status"],
     }
 
 

@@ -397,6 +397,15 @@ function renderReview(filter) {
     const explanation = document.createElement("div");
     explanation.className = "explanation";
     explanation.textContent = `จำไว้: ${item.e}`;
+    if (item.explanationSourceUrl) {
+      const source = document.createElement("a");
+      source.className = "explanation-source";
+      source.href = item.explanationSourceUrl;
+      source.target = "_blank";
+      source.rel = "noopener noreferrer";
+      source.textContent = `แหล่งอ้างอิง: ${item.explanationSourceTitle || "สำนักงาน คปภ."} ↗`;
+      explanation.append(source);
+    }
     article.append(status, title, answer, explanation);
     return article;
   });
