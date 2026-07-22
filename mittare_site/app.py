@@ -123,6 +123,7 @@ def create_app() -> Flask:
             "script.js",
             "agent-dashboard.js",
             "customer-status.js",
+            "favicon.ico",
         }
         if filename in allowed_files or filename.startswith(allowed_roots):
             return send_from_directory(BASE_DIR, filename)
