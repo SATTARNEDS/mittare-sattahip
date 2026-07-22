@@ -67,7 +67,11 @@ class MemberWorkflowTest(unittest.TestCase):
         self.assertEqual(client.get("/api/members/me/attempts").status_code, 401)
         login = client.post("/api/members/login", json={"username": "member.test", "password": "newstrongpass456"})
         self.assertEqual(login.status_code, 200)
-        self.assertEqual(login.get_json()["user"]["displayName"], "สมาชิกแก้ไขแล้ว")
+        login_data = login.get_json()
+        self.assertEqual(login_data["user"]["displayName"], "สมาชิกแก้ไขแล้ว")
+        self.assertEqual(login_data["summary"]["attempts"], 1)
+        self.assertEqual(login_data["summary"]["answered"], 20)
+        self.assertEqual(login_data["summary"]["best_score"], 85)
 
 
 if __name__ == "__main__":

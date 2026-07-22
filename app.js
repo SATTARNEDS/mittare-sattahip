@@ -127,7 +127,7 @@ function saveMember(result) {
   saveState({
     user: {...result.user, token:result.token},
     attempts:Number(summary.attempts ?? current.attempts),
-    answered:Number(summary.attempts ?? current.attempts) * EXAM_SIZE,
+    answered:Number(summary.answered ?? current.answered),
     best:Number(summary.best_score ?? current.best),
   });
   updateDashboard();

@@ -611,6 +611,17 @@ def serialize_member(user: sqlite3.Row) -> dict:
     return {"id": user["id"], "displayName": user["display_name"], "username": user["username"], "teamName": user["team_name"]}
 
 
+def get_member_summary(database: sqlite3.Connection, member_id: int) -> dict:
+    summary = database.execute(
+        """SELECT COUNT(*) AS attempts, COALESCE(SUM(total_questions), 0) AS answered,
+        COALESCE(MAX(ROUND(score * 100.0 / total_questions)), 0) AS best_score,
+        COALESCE(ROUND(AVG(score * 100.0 / total_questions)), 0) AS average_score
+        FROM attempts WHERE user_id=?""",
+        (member_id,),
+    ).fetchone()
+    return dict(summary)
+
+
 def serialize_attempt(row: sqlite3.Row) -> dict:
     item = dict(row)
     try:
@@ -662,7 +673,7 @@ def register_member():
         return jsonify({"error": "ชื่อผู้ใช้หรือชื่อที่ใช้แสดงนี้มีอยู่แล้ว"}), 409
     session["member_user_id"] = cursor.lastrowid
     user = database.execute("SELECT * FROM users WHERE id=?", (cursor.lastrowid,)).fetchone()
-    return jsonify({"user": serialize_member(user), "token": token}), 201
+    return jsonify({"user": serialize_member(user), "token": token, "summary": get_member_summary(database, user["id"])}), 201
 
 
 @app.post("/api/members/login")
@@ -692,7 +703,10 @@ def login_member():
     database.execute("UPDATE users SET last_login_at=? WHERE id=?", (utc_now(), user["id"]))
     database.commit()
     session["member_user_id"] = user["id"]
-    return jsonify({"user": serialize_member(user), "token": user["access_token"]})
+    return jsonify({
+        "user": serialize_member(user), "token": user["access_token"],
+        "summary": get_member_summary(database, user["id"]),
+    })
 
 
 @app.get("/api/members/me")
@@ -705,13 +719,10 @@ def current_member():
     if user is None:
         session.pop("member_user_id", None)
         return jsonify({"error": "ไม่พบบัญชีสมาชิก"}), 401
-    summary = database.execute(
-        """SELECT COUNT(*) AS attempts, COALESCE(MAX(ROUND(score * 100.0 / total_questions)), 0) AS best_score,
-        COALESCE(ROUND(AVG(score * 100.0 / total_questions)), 0) AS average_score
-        FROM attempts WHERE user_id=?""",
-        (member_id,),
-    ).fetchone()
-    return jsonify({"user": serialize_member(user), "token": user["access_token"], "summary": dict(summary)})
+    return jsonify({
+        "user": serialize_member(user), "token": user["access_token"],
+        "summary": get_member_summary(database, member_id),
+    })
 
 
 @app.get("/api/members/me/attempts")
