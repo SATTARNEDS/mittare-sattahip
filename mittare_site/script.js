@@ -225,6 +225,22 @@ mainNavigation?.querySelectorAll("a").forEach((link) => {
   });
 });
 
+const megaMenus = [...document.querySelectorAll(".mega-nav")];
+megaMenus.forEach((menu) => {
+  menu.addEventListener("toggle", () => {
+    if (!menu.open) return;
+    megaMenus.forEach((otherMenu) => {
+      if (otherMenu !== menu) otherMenu.removeAttribute("open");
+    });
+  });
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") megaMenus.forEach((menu) => menu.removeAttribute("open"));
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".mega-nav")) megaMenus.forEach((menu) => menu.removeAttribute("open"));
+});
+
 function markActiveNavigation() {
   const currentPath = window.location.pathname.split("/").pop() || "index.html";
   const currentCategory = new URLSearchParams(window.location.search).get("category");
@@ -384,6 +400,8 @@ initializePremiumCalculator();
 document.querySelector("#premium-category")?.addEventListener("change", () => {
   populatePremiumPlans();
   renderPremiumFields();
+  syncPremiumCategoryCards();
+  setPremiumProgress(2);
 });
 
 document.querySelector("#premium-plan")?.addEventListener("change", renderPremiumFields);
@@ -392,8 +410,22 @@ premiumCalculator?.addEventListener("reset", () => {
   window.setTimeout(() => {
     populatePremiumPlans();
     renderPremiumFields();
+    syncPremiumCategoryCards();
+    setPremiumProgress(1);
   }, 0);
 });
+
+document.querySelectorAll("[data-premium-category]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const categorySelect = document.querySelector("#premium-category");
+    if (!categorySelect) return;
+    categorySelect.value = button.dataset.premiumCategory;
+    categorySelect.dispatchEvent(new Event("change", { bubbles: true }));
+    document.querySelector("#premium-plan")?.focus();
+  });
+});
+
+premiumCalculator?.addEventListener("input", () => setPremiumProgress(2));
 
 premiumCalculator?.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -406,9 +438,27 @@ premiumCalculator?.addEventListener("submit", (event) => {
     : buildQuoteRequest(plan, formData);
 
   renderPremiumSummary(plan, result);
+  setPremiumProgress(3);
 
   premiumDialog?.showModal();
 });
+
+function syncPremiumCategoryCards() {
+  const selectedCategory = document.querySelector("#premium-category")?.value;
+  document.querySelectorAll("[data-premium-category]").forEach((button) => {
+    const isSelected = button.dataset.premiumCategory === selectedCategory;
+    button.classList.toggle("is-active", isSelected);
+    button.setAttribute("aria-pressed", String(isSelected));
+  });
+}
+
+function setPremiumProgress(activeStep) {
+  document.querySelectorAll("[data-premium-step]").forEach((step) => {
+    const stepNumber = Number(step.dataset.premiumStep);
+    step.classList.toggle("is-active", stepNumber === activeStep);
+    step.classList.toggle("is-complete", stepNumber < activeStep);
+  });
+}
 
 document.querySelector("#export-pdf")?.addEventListener("click", () => {
   // ใช้ Print Dialog ของเบราว์เซอร์เพื่อบันทึกเป็น PDF โดยไม่เพิ่มไลบรารีขนาดใหญ่
@@ -438,7 +488,7 @@ function renderPremiumSummary(plan, result) {
     ["แผน / ประเภท", plan.title],
     ...result.details,
     ["สถานะเอกสาร", result.status]
-  ].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("");
+  ].map(([label, value]) => `<div><span>${escapeAttribute(label)}</span><strong>${escapeAttribute(value)}</strong></div>`).join("");
 
   document.querySelector("#summary-price-label").textContent = result.priceLabel;
   document.querySelector("#summary-price").textContent = result.price;
@@ -459,6 +509,8 @@ function initializePremiumCalculator() {
   const requestedPlanId = new URLSearchParams(window.location.search).get("plan");
   if (requestedPlanId) selectCalculatorPlan(requestedPlanId);
   renderPremiumFields();
+  syncPremiumCategoryCards();
+  setPremiumProgress(1);
 }
 
 function populatePremiumPlans() {
@@ -963,6 +1015,11 @@ function initializeInsurancePage() {
     link.classList.toggle("is-active", isActive);
     if (isActive) link.setAttribute("aria-current", "page");
   });
+
+  const requestedPlanId = new URLSearchParams(window.location.search).get("plan");
+  if (requestedPlanId && insurancePlans.some((plan) => plan.id === requestedPlanId && plan.category === category)) {
+    window.setTimeout(() => openProductDetail(requestedPlanId), 0);
+  }
 }
 
 function openProductDetail(productId) {
