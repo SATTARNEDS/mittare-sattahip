@@ -249,8 +249,29 @@ const compulsoryVehicleRates = {
 
 const categoryQuoteFields = {
   motor: [
-    ["vehicleMakeModel", "ยี่ห้อ / รุ่นรถ", "text", "เช่น Toyota Yaris Ativ"],
-    ["vehicleYear", "ปีจดทะเบียน", "number", "2022"],
+    ["vehicleMakeModel", "ยี่ห้อ / รุ่นรถ", "select", [
+      ["toyota-yaris-ativ", "Toyota Yaris Ativ"],
+      ["toyota-vios", "Toyota Vios"],
+      ["toyota-corolla-altis", "Toyota Corolla Altis"],
+      ["toyota-fortuner", "Toyota Fortuner"],
+      ["toyota-hilux-revo", "Toyota Hilux Revo"],
+      ["honda-city", "Honda City"],
+      ["honda-civic", "Honda Civic"],
+      ["honda-hrv", "Honda HR-V"],
+      ["honda-crv", "Honda CR-V"],
+      ["isuzu-dmax", "Isuzu D-Max"],
+      ["isuzu-mux", "Isuzu MU-X"],
+      ["ford-ranger", "Ford Ranger"],
+      ["ford-everest", "Ford Everest"],
+      ["mitsubishi-triton", "Mitsubishi Triton"],
+      ["mitsubishi-pajero-sport", "Mitsubishi Pajero Sport"],
+      ["mazda-2", "Mazda 2"],
+      ["mazda-3", "Mazda 3"],
+      ["nissan-almera", "Nissan Almera"],
+      ["byd-atto-3", "BYD Atto 3"],
+      ["other", "ยี่ห้อหรือรุ่นอื่น — ให้ทีมตรวจสอบ"]
+    ]],
+    ["vehicleYear", "ปีจดทะเบียน", "year-select", ""],
     ["vehicleValue", "มูลค่ารถโดยประมาณ (บาท)", "number", "600000"],
     ["vehicleUsage", "การใช้งาน", "select", [["personal", "ส่วนบุคคล"], ["business", "ใช้ในกิจการ"], ["commercial", "รับจ้าง / เชิงพาณิชย์"]]],
     ["repairType", "ประเภทการซ่อม", "select", [["garage", "ซ่อมอู่"], ["dealer", "ซ่อมห้าง / ศูนย์"]]],
@@ -504,14 +525,7 @@ premiumCalculator?.addEventListener("click", (event) => {
   const brochureButton = event.target.closest("[data-plan-document]");
   if (brochureButton) {
     openPlanDocument(brochureButton.dataset.planDocument);
-    return;
   }
-
-  const choiceButton = event.target.closest("[data-fixed-field]");
-  const selector = choiceButton?.closest(".fixed-package-selector");
-  if (!choiceButton || !selector) return;
-  selector.dataset[choiceButton.dataset.fixedField] = choiceButton.dataset.value;
-  syncFixedPackageSelector(selector);
 });
 
 premiumCalculator?.addEventListener("submit", (event) => {
@@ -684,7 +698,7 @@ function renderPremiumFields() {
         <button type="button" data-plan-document="${escapeAttribute(plan.id)}">เปิดโบรชัวร์แผนนี้ →</button>
       </div>
     `;
-    syncFixedPackageSelector(container.querySelector(".fixed-package-selector"));
+    initializeFixedPackageSelector(container.querySelector(".fixed-package-selector"));
     return;
   }
 
@@ -706,6 +720,19 @@ function renderPremiumFields() {
 }
 
 function renderCalculatorField([name, label, type, config]) {
+  if (type === "year-select") {
+    const currentYear = new Date().getFullYear();
+    const years = Array.from({ length: 26 }, (_, index) => currentYear - index);
+    return `
+      <div class="form-row">
+        <label for="${name}">${label}</label>
+        <select id="${name}" name="${name}" required>
+          ${years.map((year) => `<option value="${year}">${year + 543} (${year})</option>`).join("")}
+        </select>
+      </div>
+    `;
+  }
+
   if (type === "select") {
     return `
       <div class="form-row">
@@ -895,6 +922,7 @@ function syncFixedPackageSelector(selector) {
   });
 
   const coverageRows = getFixedCoverageRows(selector.dataset.planId, selected);
+  selector.dataset.selectedTier = selected.tier;
   selector.querySelector(".fixed-selection-result").innerHTML = `
     <header>
       <span>แพ็กเกจที่เลือก</span>
@@ -905,6 +933,17 @@ function syncFixedPackageSelector(selector) {
     <h4>ตารางรายละเอียดความคุ้มครอง</h4>
     ${renderCoverageTable(coverageRows)}
   `;
+}
+
+function initializeFixedPackageSelector(selector) {
+  if (!selector) return;
+  selector.querySelectorAll("[data-fixed-field]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selector.dataset[button.dataset.fixedField] = button.dataset.value;
+      syncFixedPackageSelector(selector);
+    });
+  });
+  syncFixedPackageSelector(selector);
 }
 
 function getFixedCoverageRows(planId, option) {
