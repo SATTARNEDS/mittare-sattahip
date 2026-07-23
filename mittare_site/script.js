@@ -377,14 +377,14 @@ const vehicleCatalog = {
 
 const categoryQuoteFields = {
   motor: [
-    ["vehicleValue", "มูลค่ารถโดยประมาณ (บาท)", "number", "600000"],
+    ["vehicleValue", "มูลค่ารถ / ทุนโดยประมาณ", "select", [["600000", "600,000 บาท"], ["200000", "200,000 บาท"], ["300000", "300,000 บาท"], ["400000", "400,000 บาท"], ["500000", "500,000 บาท"], ["800000", "800,000 บาท"], ["1000000", "1,000,000 บาท"], ["1500000", "1,500,000 บาท"], ["2000000", "2,000,000 บาท"]]],
     ["vehicleUsage", "การใช้งาน", "select", [["personal", "ส่วนบุคคล"], ["business", "ใช้ในกิจการ"], ["commercial", "รับจ้าง / เชิงพาณิชย์"]]],
     ["repairType", "ประเภทการซ่อม", "select", [["garage", "ซ่อมอู่"], ["dealer", "ซ่อมห้าง / ศูนย์"]]],
     ["claimHistory", "ประวัติเคลมย้อนหลัง", "select", [["0", "ไม่มีเคลม"], ["1", "1 ครั้ง"], ["2plus", "2 ครั้งขึ้นไป"]]]
   ],
   property: [
     ["propertyType", "ประเภททรัพย์สิน", "select", [["house", "บ้านพักอาศัย"], ["condo", "คอนโด"], ["commercial", "อาคารพาณิชย์"], ["construction", "งานก่อสร้าง"]]],
-    ["propertyValue", "ทุนประกัน / มูลค่าทดแทน (บาท)", "number", "2000000"],
+    ["propertyValue", "เลือกทุนประกัน / มูลค่าทดแทน", "select", [["2000000", "2,000,000 บาท"], ["500000", "500,000 บาท"], ["1000000", "1,000,000 บาท"], ["1500000", "1,500,000 บาท"], ["3000000", "3,000,000 บาท"], ["5000000", "5,000,000 บาท"], ["10000000", "10,000,000 บาท"]]],
     ["propertyProvince", "จังหวัดที่ตั้ง", "text", "ชลบุรี"],
     ["constructionType", "โครงสร้างหลัก", "select", [["concrete", "คอนกรีต"], ["mixed", "โครงสร้างผสม"], ["wood", "ไม้"]]],
     ["floodCoverage", "ต้องการภัยน้ำท่วม", "select", [["yes", "ต้องการ"], ["no", "ไม่ต้องการ / ขอประเมินก่อน"]]]
@@ -393,19 +393,19 @@ const categoryQuoteFields = {
     ["insuredAge", "อายุผู้เอาประกัน", "number", "35"],
     ["occupation", "อาชีพ", "text", "พนักงานบริษัท"],
     ["occupationRisk", "ระดับความเสี่ยงอาชีพ", "select", [["office", "งานสำนักงาน"], ["field", "งานภาคสนาม"], ["high", "งานเสี่ยง / ใช้เครื่องจักร"]]],
-    ["benefitAmount", "วงเงินที่ต้องการ (บาท)", "number", "500000"],
+    ["benefitAmount", "เลือกทุน / วงเงินที่ต้องการ", "select", [["500000", "500,000 บาท"], ["100000", "100,000 บาท"], ["200000", "200,000 บาท"], ["300000", "300,000 บาท"], ["1000000", "1,000,000 บาท"], ["2000000", "2,000,000 บาท"]]],
     ["memberCount", "จำนวนผู้เอาประกัน", "number", "1"]
   ],
   business: [
     ["businessType", "ประเภทธุรกิจ / สินค้า", "text", "ร้านค้า / คาเฟ่ / ขนส่ง"],
     ["businessProvince", "จังหวัดที่ตั้ง / เส้นทาง", "text", "ชลบุรี"],
-    ["assetValue", "มูลค่าทรัพย์สินหรือสินค้าสูงสุด (บาท)", "number", "1000000"],
+    ["assetValue", "เลือกทุนทรัพย์สินหรือสินค้าสูงสุด", "select", [["1000000", "1,000,000 บาท"], ["300000", "300,000 บาท"], ["500000", "500,000 บาท"], ["2000000", "2,000,000 บาท"], ["3000000", "3,000,000 บาท"], ["5000000", "5,000,000 บาท"], ["10000000", "10,000,000 บาท"]]],
     ["annualRevenue", "รายได้ต่อปีโดยประมาณ (บาท)", "number", "3000000"],
     ["employeeCount", "จำนวนพนักงาน", "number", "5"]
   ],
   specialty: [
     ["specialtySubject", "รายละเอียดสิ่งที่เอาประกัน", "text", "รุ่นโดรน / สถานีบริการ / ประเภทรถ"],
-    ["specialtyValue", "มูลค่าหรือวงเงินที่ต้องการ (บาท)", "number", "200000"],
+    ["specialtyValue", "เลือกทุนหรือวงเงินที่ต้องการ", "select", [["200000", "200,000 บาท"], ["100000", "100,000 บาท"], ["300000", "300,000 บาท"], ["500000", "500,000 บาท"], ["1000000", "1,000,000 บาท"], ["2000000", "2,000,000 บาท"], ["5000000", "5,000,000 บาท"]]],
     ["specialtyUsage", "วัตถุประสงค์การใช้งาน", "text", "ส่วนบุคคล / เชิงพาณิชย์"],
     ["specialtyProvince", "พื้นที่ใช้งาน", "text", "ชลบุรี"]
   ]
@@ -980,12 +980,19 @@ function renderCalculatorField([name, label, type, config], planId = "") {
     const selectOptions = planId === "motor-one" && name === "repairType"
       ? config.filter(([value]) => value === "garage")
       : config;
+    const amountFieldNames = new Set(["vehicleValue", "propertyValue", "benefitAmount", "assetValue", "specialtyValue"]);
+    const isAmountSelection = amountFieldNames.has(name);
+    const orderedOptions = isAmountSelection
+      ? [...selectOptions].sort(([firstValue], [secondValue]) => Number(firstValue) - Number(secondValue))
+      : selectOptions;
     return `
       <div class="form-row">
         <label for="${name}">${label}</label>
         <select id="${name}" name="${name}" required>
-          ${selectOptions.map(([value, text]) => `<option value="${value}">${text}</option>`).join("")}
+          ${isAmountSelection ? '<option value="" selected disabled>เลือกทุนที่ต้องการดูราคาเบื้องต้น</option>' : ""}
+          ${orderedOptions.map(([value, text]) => `<option value="${value}">${text}</option>`).join("")}
         </select>
+        ${isAmountSelection ? '<small class="field-help">ใช้สำหรับดูราคาโดยประมาณ การกำหนดทุนจริงขึ้นกับเงื่อนไขและการพิจารณาของบริษัท</small>' : ""}
       </div>
     `;
   }
