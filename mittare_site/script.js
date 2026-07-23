@@ -1419,7 +1419,7 @@ async function loadDynamicProductMedia() {
 }
 
 function escapeAttribute(value) {
-  return String(value || "")
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
