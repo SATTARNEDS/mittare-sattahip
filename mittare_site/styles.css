@@ -1865,10 +1865,10 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
 .premium-form-panel .form-row select { height: 54px; }
 .vehicle-identity .field-help { grid-row: auto; }
 .agent-invitation { color: var(--ink); background: linear-gradient(135deg, #eff8f4 0%, #fffdf2 100%); }
-.agent-invitation__shell { display: grid; grid-template-columns: minmax(300px, .78fr) minmax(0, 1.22fr); gap: clamp(38px, 7vw, 90px); align-items: center; }
-.agent-invitation__visual { position: relative; display: grid; overflow: hidden; background: var(--green-950); border: 1px solid rgba(7,86,79,.12); border-radius: 30px; box-shadow: var(--shadow); }
-.agent-invitation__visual img { position: relative; z-index: 1; display: block; width: 100%; height: auto; object-fit: contain; }
-.agent-invitation__visual > div { position: relative; z-index: 2; display: grid; min-height: 104px; padding: 18px 26px; color: var(--white); background: linear-gradient(135deg, var(--green-950), var(--green-800)); align-content: center; }
+.agent-invitation__shell { display: grid; grid-template-columns: minmax(490px, 1.05fr) minmax(0, .95fr); gap: clamp(34px, 5vw, 62px); align-items: center; }
+.agent-invitation__visual { position: relative; display: grid; overflow: hidden; padding: 14px 14px 0; background: linear-gradient(145deg, #d9eee4, #f4edc9); border: 1px solid rgba(7,86,79,.18); border-radius: 30px; box-shadow: var(--shadow); }
+.agent-invitation__visual img { position: relative; z-index: 1; display: block; width: 100%; height: auto; object-fit: contain; mix-blend-mode: multiply; border-radius: 18px 18px 0 0; }
+.agent-invitation__visual > div { position: relative; z-index: 2; display: grid; min-height: 96px; padding: 16px 24px; margin: 0 -14px; color: var(--white); background: linear-gradient(135deg, var(--green-950), var(--green-800)); align-content: center; }
 .agent-invitation__visual > div span { color: var(--yellow); font-size: clamp(2.5rem, 5vw, 4.2rem); font-weight: 800; line-height: 1; }
 .agent-invitation__visual > div small { max-width: 260px; margin-top: 8px; color: rgba(255,255,255,.75); line-height: 1.5; }
 .agent-invitation__content > h2 { max-width: 760px; margin: 12px 0 18px; }
