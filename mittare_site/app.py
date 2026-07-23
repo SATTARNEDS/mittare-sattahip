@@ -177,6 +177,7 @@ def create_app() -> Flask:
             "authenticated": is_authenticated(),
             "adminUser": current_admin_user(),
             "csrfToken": session.get("csrf_token", "") if is_authenticated() else "",
+            "sharedAdminLogin": True,
             "linePushConfigured": bool(app.config["LINE_CHANNEL_ACCESS_TOKEN"]),
             "lineWebhookConfigured": bool(app.config["LINE_CHANNEL_SECRET"]),
         })
