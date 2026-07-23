@@ -26,6 +26,8 @@ services:
         sync: false
       - key: LINE_CHANNEL_SECRET
         sync: false
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
       - key: ADMIN_LINE_USER_ID
         value: Ueaebf5b870fcdd317383855ff445e460
     disk:

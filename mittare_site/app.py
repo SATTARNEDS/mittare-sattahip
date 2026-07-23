@@ -33,6 +33,7 @@ from werkzeug.exceptions import BadRequest, HTTPException
 from werkzeug.security import safe_join
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -48,6 +49,7 @@ LOGIN_MAX_FAILURES = 5
 LOGIN_BLOCK_SECONDS = 15 * 60
 PUBLIC_LOOKUP_LIMIT = 10
 PUBLIC_LOOKUP_WINDOW_SECONDS = 60
+BACKUP_MAGIC = b"MITTARE-BACKUP-V1\0"
 DEFAULT_ADMIN_LINE_USER_ID = "Ueaebf5b870fcdd317383855ff445e460"
 
 DEFAULT_PRODUCT_MEDIA = {
@@ -110,6 +112,7 @@ def create_app() -> Flask:
     app.config["MAX_FORM_PARTS"] = 30
     app.config["LINE_CHANNEL_ACCESS_TOKEN"] = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
     app.config["LINE_CHANNEL_SECRET"] = os.environ.get("LINE_CHANNEL_SECRET", "")
+    app.config["BACKUP_ENCRYPTION_KEY"] = os.environ.get("BACKUP_ENCRYPTION_KEY", "")
     app.config["ADMIN_LINE_USER_ID"] = os.environ.get("ADMIN_LINE_USER_ID", DEFAULT_ADMIN_LINE_USER_ID)
 
     INSTANCE_DIR.mkdir(exist_ok=True)
@@ -764,6 +767,9 @@ def create_app() -> Flask:
     @app.get("/api/backup/full")
     @require_admin
     def download_full_backup():
+        encryption_key = decode_backup_encryption_key(app.config["BACKUP_ENCRYPTION_KEY"])
+        if encryption_key is None:
+            return jsonify({"error": "ยังไม่ได้ตั้งค่า BACKUP_ENCRYPTION_KEY จึงปิดการดาวน์โหลด Backup เพื่อความปลอดภัย"}), 503
         created_at = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, mode="w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as backup_zip:
@@ -780,14 +786,17 @@ def create_app() -> Flask:
                 backup_zip.write(DATABASE_PATH, "database/mittare.sqlite3")
             add_directory_to_zip(backup_zip, UPLOAD_DIR, "uploads")
             add_directory_to_zip(backup_zip, PRODUCT_MEDIA_DIR, "product-media")
-        archive.seek(0)
+        archive_bytes = archive.getvalue()
+        nonce = secrets.token_bytes(12)
+        encrypted_backup = io.BytesIO(BACKUP_MAGIC + nonce + AESGCM(encryption_key).encrypt(nonce, archive_bytes, BACKUP_MAGIC))
+        encrypted_backup.seek(0)
         with get_db() as db:
-            log_audit_event(db, "backup.full", None, "ดาวน์โหลด Full Backup", {"filename": f"mittare-full-backup-{created_at}.zip"})
+            log_audit_event(db, "backup.full_encrypted", None, "ดาวน์โหลด Full Backup แบบเข้ารหัส", {"filename": f"mittare-full-backup-{created_at}.mtbackup"})
         return send_file(
-            archive,
-            mimetype="application/zip",
+            encrypted_backup,
+            mimetype="application/octet-stream",
             as_attachment=True,
-            download_name=f"mittare-full-backup-{created_at}.zip",
+            download_name=f"mittare-full-backup-{created_at}.mtbackup",
         )
 
     @app.post("/api/demo/seed")
@@ -1400,6 +1409,18 @@ def parse_float(value: Any) -> float:
         return number
     except (TypeError, ValueError):
         raise BadRequest("จำนวนเงินไม่ถูกต้อง")
+
+
+def decode_backup_encryption_key(encoded_key: str) -> bytes | None:
+    if not encoded_key:
+        return None
+    try:
+        key = base64.urlsafe_b64decode(encoded_key.encode("ascii"))
+    except (ValueError, UnicodeEncodeError) as error:
+        raise RuntimeError("BACKUP_ENCRYPTION_KEY ต้องเป็น URL-safe base64") from error
+    if len(key) != 32:
+        raise RuntimeError("BACKUP_ENCRYPTION_KEY ต้องถอดรหัสได้ 32 bytes")
+    return key
 
 
 def create_public_reference() -> str:

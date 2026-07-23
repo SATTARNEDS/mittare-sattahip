@@ -34,6 +34,7 @@ ADMIN_USERNAME=mt4admin
 ADMIN_PASSWORD=รหัสผ่านเริ่มต้นอย่างน้อย 12 ตัว
 RESET_ADMIN_PASSWORD=0  # เปลี่ยนเป็น 1 ชั่วคราวเมื่อต้องการรีเซ็ตรหัส Admin เดิม
 COOKIE_SECURE=0  # ใช้เฉพาะ localhost ที่ไม่มี HTTPS
+BACKUP_ENCRYPTION_KEY=URL-safe base64 ของค่าสุ่ม 32 bytes
 ```
 
 ระบบจะสร้างบัญชี Admin เริ่มต้นจากตัวแปรเหล่านี้เฉพาะเมื่อฐานข้อมูลยังไม่มีผู้ดูแล หลังเข้าสู่ระบบแล้ว Admin สามารถสร้างบัญชีรายบุคคลให้หัวหน้าทีมได้ รหัสผ่านเก็บเป็น hash และคำสั่งแก้ไขใช้ session cookie, CSRF token, version history และ audit log
@@ -51,5 +52,7 @@ COOKIE_SECURE=0  # ใช้เฉพาะ localhost ที่ไม่มี H
 โลโก้โปร่งใสทั้งสามอยู่ใน `assets/mt4-heart-logo.png`, `assets/team-community-logo.png` และ `assets/one-team-logo.png` โดยใช้แยกกันคนละตำแหน่งบนหน้าเว็บ
 
 `render.yaml` สร้าง `SECRET_KEY` อัตโนมัติและกำหนดให้กรอก `ADMIN_PASSWORD` เป็น secret ใน Render Dashboard
+
+Full Backup ถูกเข้ารหัสแบบ AES-256-GCM และดาวน์โหลดเป็น `.mtbackup` ระบบจะปิดการดาวน์โหลดแบบ fail-safe หากยังไม่ตั้ง `BACKUP_ENCRYPTION_KEY` วิธีสร้างกุญแจและถอดรหัสอยู่ใน `SECURITY.md`
 
 > สำคัญ: แผน Free ของ Render ใช้ filesystem ชั่วคราว ข้อมูลที่เพิ่มผ่านหลังบ้าน บัญชีผู้ดูแล และคะแนนส่วนกลางอาจหายเมื่อ deploy/restart ก่อนใช้งานจริงต้องเพิ่ม Render Persistent Disk แล้วเปลี่ยน `DATABASE_PATH` เป็น path บน disk (ใช้ web service หนึ่ง instance) หรือย้ายไป Render Postgres การเพิ่ม Persistent Disk อาจมีค่าใช้จ่ายจึงไม่ได้เปิดให้อัตโนมัติจาก repository

@@ -1043,10 +1043,10 @@ async function downloadFullBackup() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `mittare-full-backup-${new Date().toISOString().slice(0, 10)}.zip`;
+    link.download = `mittare-full-backup-${new Date().toISOString().slice(0, 10)}.mtbackup`;
     link.click();
     URL.revokeObjectURL(url);
-    backupFeedback.textContent = "ดาวน์โหลด Full Backup ZIP เรียบร้อยแล้ว";
+    backupFeedback.textContent = "ดาวน์โหลด Full Backup แบบเข้ารหัสเรียบร้อยแล้ว";
     await refreshReports();
   } catch (error) {
     backupFeedback.textContent = error.message;

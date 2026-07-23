@@ -1,4 +1,5 @@
 import io
+import base64
 import os
 import tempfile
 import unittest
@@ -9,9 +10,12 @@ from werkzeug.datastructures import FileStorage
 from werkzeug.exceptions import BadRequest
 
 import mittare_site.app as site_module
+from decrypt_backup import decrypt_backup
 
 
 class SiteSecurityTest(unittest.TestCase):
+    backup_key = base64.urlsafe_b64encode(b"k" * 32).decode("ascii")
+
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         instance_dir = Path(self.temp_dir.name)
@@ -30,6 +34,7 @@ class SiteSecurityTest(unittest.TestCase):
             "ADMIN_PASSWORD": "StrongPassword-123!",
             "COOKIE_SECURE": "1",
             "LINE_CHANNEL_SECRET": "test-line-secret",
+            "BACKUP_ENCRYPTION_KEY": self.backup_key,
         }, clear=False)
         self.env.start()
         self.app = site_module.create_app()
@@ -120,6 +125,17 @@ class SiteSecurityTest(unittest.TestCase):
             headers={"X-CSRF-Token": csrf_token},
         )
         self.assertEqual(invalid_status.status_code, 400)
+
+    def test_full_backup_is_encrypted_and_can_be_recovered(self):
+        self.login()
+        response = self.client.get("/api/backup/full")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data.startswith(site_module.BACKUP_MAGIC))
+        source = Path(self.temp_dir.name) / "backup.mtbackup"
+        destination = Path(self.temp_dir.name) / "backup.zip"
+        source.write_bytes(response.data)
+        decrypt_backup(source, destination, self.backup_key)
+        self.assertTrue(destination.read_bytes().startswith(b"PK"))
 
 
 if __name__ == "__main__":

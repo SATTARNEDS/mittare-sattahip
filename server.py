@@ -85,6 +85,11 @@ def add_security_headers(response):
         "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; "
         "frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
     )
+    if request.is_secure or request.headers.get("X-Forwarded-Proto", "").lower() == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    if request.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
     return response
 
 
