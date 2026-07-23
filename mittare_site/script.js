@@ -375,41 +375,80 @@ const vehicleCatalog = {
   }
 };
 
+const thaiProvinceOptions = [
+  "กรุงเทพมหานคร", "กระบี่", "กาญจนบุรี", "กาฬสินธุ์", "กำแพงเพชร", "ขอนแก่น", "จันทบุรี",
+  "ฉะเชิงเทรา", "ชลบุรี", "ชัยนาท", "ชัยภูมิ", "ชุมพร", "เชียงราย", "เชียงใหม่", "ตรัง",
+  "ตราด", "ตาก", "นครนายก", "นครปฐม", "นครพนม", "นครราชสีมา", "นครศรีธรรมราช",
+  "นครสวรรค์", "นนทบุรี", "นราธิวาส", "น่าน", "บึงกาฬ", "บุรีรัมย์", "ปทุมธานี",
+  "ประจวบคีรีขันธ์", "ปราจีนบุรี", "ปัตตานี", "พระนครศรีอยุธยา", "พะเยา", "พังงา",
+  "พัทลุง", "พิจิตร", "พิษณุโลก", "เพชรบุรี", "เพชรบูรณ์", "แพร่", "ภูเก็ต", "มหาสารคาม",
+  "มุกดาหาร", "แม่ฮ่องสอน", "ยโสธร", "ยะลา", "ร้อยเอ็ด", "ระนอง", "ระยอง", "ราชบุรี",
+  "ลพบุรี", "ลำปาง", "ลำพูน", "เลย", "ศรีสะเกษ", "สกลนคร", "สงขลา", "สตูล",
+  "สมุทรปราการ", "สมุทรสงคราม", "สมุทรสาคร", "สระแก้ว", "สระบุรี", "สิงห์บุรี",
+  "สุโขทัย", "สุพรรณบุรี", "สุราษฎร์ธานี", "สุรินทร์", "หนองคาย", "หนองบัวลำภู",
+  "อ่างทอง", "อำนาจเจริญ", "อุดรธานี", "อุตรดิตถ์", "อุทัยธานี", "อุบลราชธานี"
+].map((province) => [province, province]);
+
+const reviewCapitalOption = [["team-review", "ให้ทีมตรวจสอบทุนตามเกณฑ์ของแผน"]];
+const personalAgeOptions = Array.from({ length: 68 }, (_, index) => {
+  const age = index + 3;
+  return [String(age), `${age} ปี`];
+});
+const memberCountOptions = Array.from({ length: 10 }, (_, index) => {
+  const count = index + 1;
+  return [String(count), `${count} คน`];
+});
+
 const categoryQuoteFields = {
   motor: [
-    ["vehicleValue", "มูลค่ารถ / ทุนโดยประมาณ", "select", [["600000", "600,000 บาท"], ["200000", "200,000 บาท"], ["300000", "300,000 บาท"], ["400000", "400,000 บาท"], ["500000", "500,000 บาท"], ["800000", "800,000 บาท"], ["1000000", "1,000,000 บาท"], ["1500000", "1,500,000 บาท"], ["2000000", "2,000,000 บาท"]]],
+    ["vehicleValue", "ทุนประกัน", "select", reviewCapitalOption],
     ["vehicleUsage", "การใช้งาน", "select", [["personal", "ส่วนบุคคล"], ["business", "ใช้ในกิจการ"], ["commercial", "รับจ้าง / เชิงพาณิชย์"]]],
     ["repairType", "ประเภทการซ่อม", "select", [["garage", "ซ่อมอู่"], ["dealer", "ซ่อมห้าง / ศูนย์"]]],
     ["claimHistory", "ประวัติเคลมย้อนหลัง", "select", [["0", "ไม่มีเคลม"], ["1", "1 ครั้ง"], ["2plus", "2 ครั้งขึ้นไป"]]]
   ],
   property: [
     ["propertyType", "ประเภททรัพย์สิน", "select", [["house", "บ้านพักอาศัย"], ["condo", "คอนโด"], ["commercial", "อาคารพาณิชย์"], ["construction", "งานก่อสร้าง"]]],
-    ["propertyValue", "เลือกทุนประกัน / มูลค่าทดแทน", "select", [["2000000", "2,000,000 บาท"], ["500000", "500,000 บาท"], ["1000000", "1,000,000 บาท"], ["1500000", "1,500,000 บาท"], ["3000000", "3,000,000 บาท"], ["5000000", "5,000,000 บาท"], ["10000000", "10,000,000 บาท"]]],
-    ["propertyProvince", "จังหวัดที่ตั้ง", "text", "ชลบุรี"],
+    ["propertyValue", "ทุนประกัน", "select", reviewCapitalOption],
+    ["propertyProvince", "จังหวัดที่ตั้ง", "select", thaiProvinceOptions],
     ["constructionType", "โครงสร้างหลัก", "select", [["concrete", "คอนกรีต"], ["mixed", "โครงสร้างผสม"], ["wood", "ไม้"]]],
     ["floodCoverage", "ต้องการภัยน้ำท่วม", "select", [["yes", "ต้องการ"], ["no", "ไม่ต้องการ / ขอประเมินก่อน"]]]
   ],
   personal: [
-    ["insuredAge", "อายุผู้เอาประกัน", "number", "35"],
-    ["occupation", "อาชีพ", "text", "พนักงานบริษัท"],
+    ["insuredAge", "อายุผู้เอาประกัน", "select", personalAgeOptions],
+    ["occupation", "อาชีพ", "select", [["office", "พนักงานสำนักงาน"], ["government", "ข้าราชการ / รัฐวิสาหกิจ"], ["teacher", "ครู / บุคลากรการศึกษา"], ["retail", "ค้าขาย / งานบริการ"], ["driver", "ขับรถ / ส่งสินค้า"], ["technician", "ช่าง / งานภาคสนาม"], ["factory", "โรงงาน / ใช้เครื่องจักร"], ["agriculture", "เกษตรกรรม / ประมง"], ["other", "อาชีพอื่น — ให้ทีมตรวจสอบ"]]],
     ["occupationRisk", "ระดับความเสี่ยงอาชีพ", "select", [["office", "งานสำนักงาน"], ["field", "งานภาคสนาม"], ["high", "งานเสี่ยง / ใช้เครื่องจักร"]]],
-    ["benefitAmount", "เลือกทุน / วงเงินที่ต้องการ", "select", [["500000", "500,000 บาท"], ["100000", "100,000 บาท"], ["200000", "200,000 บาท"], ["300000", "300,000 บาท"], ["1000000", "1,000,000 บาท"], ["2000000", "2,000,000 บาท"]]],
-    ["memberCount", "จำนวนผู้เอาประกัน", "number", "1"]
+    ["benefitAmount", "ทุนประกัน", "select", reviewCapitalOption],
+    ["memberCount", "จำนวนผู้เอาประกัน", "select", memberCountOptions]
   ],
   business: [
-    ["businessType", "ประเภทธุรกิจ / สินค้า", "text", "ร้านค้า / คาเฟ่ / ขนส่ง"],
-    ["businessProvince", "จังหวัดที่ตั้ง / เส้นทาง", "text", "ชลบุรี"],
-    ["assetValue", "เลือกทุนทรัพย์สินหรือสินค้าสูงสุด", "select", [["1000000", "1,000,000 บาท"], ["300000", "300,000 บาท"], ["500000", "500,000 บาท"], ["2000000", "2,000,000 บาท"], ["3000000", "3,000,000 บาท"], ["5000000", "5,000,000 บาท"], ["10000000", "10,000,000 บาท"]]],
-    ["annualRevenue", "รายได้ต่อปีโดยประมาณ (บาท)", "number", "3000000"],
-    ["employeeCount", "จำนวนพนักงาน", "number", "5"]
+    ["businessType", "ประเภทธุรกิจ / สินค้า", "select", [["retail", "ร้านค้าปลีก / ค้าส่ง"], ["restaurant", "ร้านอาหาร / คาเฟ่"], ["office", "สำนักงาน"], ["service", "ธุรกิจบริการ"], ["warehouse", "คลังสินค้า"], ["factory", "โรงงาน"], ["transport", "ขนส่ง / โลจิสติกส์"], ["construction", "รับเหมาก่อสร้าง"], ["gold", "ร้านทอง / ทรัพย์สินมีค่า"], ["other", "ธุรกิจอื่น — ให้ทีมตรวจสอบ"]]],
+    ["businessProvince", "จังหวัดที่ตั้ง / ต้นทาง", "select", thaiProvinceOptions],
+    ["assetValue", "ทุนทรัพย์สินหรือสินค้า", "select", reviewCapitalOption],
+    ["annualRevenue", "ช่วงรายได้ต่อปี", "select", [["under-1m", "ไม่เกิน 1 ล้านบาท"], ["1m-3m", "มากกว่า 1–3 ล้านบาท"], ["3m-5m", "มากกว่า 3–5 ล้านบาท"], ["5m-10m", "มากกว่า 5–10 ล้านบาท"], ["10m-20m", "มากกว่า 10–20 ล้านบาท"], ["over-20m", "มากกว่า 20 ล้านบาท — ให้ทีมตรวจสอบ"]]],
+    ["employeeCount", "จำนวนพนักงาน", "select", [["1-5", "1–5 คน"], ["6-10", "6–10 คน"], ["11-20", "11–20 คน"], ["21-50", "21–50 คน"], ["over-50", "มากกว่า 50 คน"]]]
   ],
   specialty: [
-    ["specialtySubject", "รายละเอียดสิ่งที่เอาประกัน", "text", "รุ่นโดรน / สถานีบริการ / ประเภทรถ"],
-    ["specialtyValue", "เลือกทุนหรือวงเงินที่ต้องการ", "select", [["200000", "200,000 บาท"], ["100000", "100,000 บาท"], ["300000", "300,000 บาท"], ["500000", "500,000 บาท"], ["1000000", "1,000,000 บาท"], ["2000000", "2,000,000 บาท"], ["5000000", "5,000,000 บาท"]]],
-    ["specialtyUsage", "วัตถุประสงค์การใช้งาน", "text", "ส่วนบุคคล / เชิงพาณิชย์"],
-    ["specialtyProvince", "พื้นที่ใช้งาน", "text", "ชลบุรี"]
+    ["specialtySubject", "ประเภทสิ่งที่เอาประกัน", "select", [["drone", "โดรน / อากาศยานไร้คนขับ"], ["fuel-station", "สถานีบริการเชื้อเพลิง"], ["fuel-truck", "รถบรรทุก LPG / NGV / น้ำมัน"], ["other", "ประเภทอื่น — ให้ทีมตรวจสอบ"]]],
+    ["specialtyValue", "ทุนหรือวงเงิน", "select", reviewCapitalOption],
+    ["specialtyUsage", "วัตถุประสงค์การใช้งาน", "select", [["personal", "ส่วนบุคคล"], ["business", "ใช้ในกิจการ"], ["commercial", "รับจ้าง / เชิงพาณิชย์"], ["other", "อื่น ๆ — ให้ทีมตรวจสอบ"]]],
+    ["specialtyProvince", "พื้นที่ใช้งาน", "select", thaiProvinceOptions]
   ]
 };
+
+function getQuoteFieldsForPlan(category, planId) {
+  const fields = (categoryQuoteFields[category] || []).map((field) => [...field]);
+  const officialCapitalOptions = {
+    "residential-fire": [["400000", "400,000 บาท — ตามโบรชัวร์ที่อยู่อาศัย"]],
+    pa1: [["100000", "100,000 บาท"], ["200000", "200,000 บาท"], ["300000", "300,000 บาท"], ["400000", "400,000 บาท"], ["500000", "500,000 บาท"]]
+  };
+  const capitalOptions = officialCapitalOptions[planId];
+  if (!capitalOptions) return fields;
+
+  const capitalFieldNames = new Set(["propertyValue", "benefitAmount"]);
+  return fields.map(([name, label, type, config]) =>
+    capitalFieldNames.has(name) ? [name, `${label} (อ้างอิงเอกสารบริษัท)`, type, capitalOptions] : [name, label, type, config]
+  );
+}
 
 menuButton?.addEventListener("click", () => {
   const isOpen = menuButton.getAttribute("aria-expanded") === "true";
@@ -840,7 +879,7 @@ function renderPremiumFields() {
     return;
   }
 
-  const fields = categoryQuoteFields[category] || [];
+  const fields = getQuoteFieldsForPlan(category, plan.id);
   container.innerHTML = `
     ${category === "motor" ? renderVehicleIdentityFields(plan.id) : ""}
     <div class="form-grid">
@@ -982,17 +1021,17 @@ function renderCalculatorField([name, label, type, config], planId = "") {
       : config;
     const amountFieldNames = new Set(["vehicleValue", "propertyValue", "benefitAmount", "assetValue", "specialtyValue"]);
     const isAmountSelection = amountFieldNames.has(name);
-    const orderedOptions = isAmountSelection
+    const orderedOptions = isAmountSelection && selectOptions.every(([value]) => Number.isFinite(Number(value)))
       ? [...selectOptions].sort(([firstValue], [secondValue]) => Number(firstValue) - Number(secondValue))
       : selectOptions;
     return `
       <div class="form-row">
         <label for="${name}">${label}</label>
         <select id="${name}" name="${name}" required>
-          ${isAmountSelection ? '<option value="" selected disabled>เลือกทุนที่ต้องการดูราคาเบื้องต้น</option>' : ""}
+          ${isAmountSelection ? '<option value="" selected disabled>เลือกทุนตามข้อมูลของแผน</option>' : ""}
           ${orderedOptions.map(([value, text]) => `<option value="${value}">${text}</option>`).join("")}
         </select>
-        ${isAmountSelection ? '<small class="field-help">ใช้สำหรับดูราคาโดยประมาณ การกำหนดทุนจริงขึ้นกับเงื่อนไขและการพิจารณาของบริษัท</small>' : ""}
+        ${isAmountSelection ? '<small class="field-help">แสดงเฉพาะทุนที่ยืนยันจากเอกสารบริษัท หากแผนไม่กำหนดทุนสำเร็จรูป ระบบจะส่งให้ทีมตรวจสอบ</small>' : ""}
       </div>
     `;
   }
