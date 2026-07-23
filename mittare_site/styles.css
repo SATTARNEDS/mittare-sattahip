@@ -196,7 +196,7 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
 .eyebrow span { width: 34px; height: 2px; background: currentColor; }
 .eyebrow--dark { color: var(--green-800); }
 .eyebrow--light { color: var(--yellow); }
-.hero h1 { max-width: 720px; margin: 0; font-size: clamp(3.6rem, 7vw, 6.7rem); font-weight: 700; line-height: 1.08; letter-spacing: -.045em; }
+.hero h1 { max-width: 720px; margin: 0; font-size: clamp(3.6rem, 7vw, 6.7rem); font-weight: 700; line-height: 1.22; letter-spacing: -.035em; }
 .hero h1 em { color: var(--yellow); font-style: normal; }
 .hero__lead { max-width: 590px; margin: 38px 0 38px; color: rgba(255,255,255,.84); font-size: 1.16rem; line-height: 1.85; }
 .hero__actions { display: flex; gap: 13px; flex-wrap: wrap; }
@@ -1921,7 +1921,7 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
   .hero__image { background-position: 64% center; }
   .hero__overlay { background: linear-gradient(0deg, rgba(3,42,39,.98) 0%, rgba(3,42,39,.88) 48%, rgba(3,42,39,.18) 100%); }
   .hero__content { padding-block: 220px 80px; }
-  .hero h1 { max-width: 600px; font-size: clamp(3rem, 11.5vw, 4.7rem); line-height: 1.1; letter-spacing: -.035em; }
+  .hero h1 { max-width: 600px; font-size: clamp(3rem, 11.5vw, 4.7rem); line-height: 1.22; letter-spacing: -.025em; }
   .hero__lead { max-width: 540px; margin-top: 34px; font-size: 1rem; line-height: 1.8; }
   .hero__trust { margin-top: 38px; }
   .hero__trust div { min-width: auto; padding-right: 18px; margin-right: 18px; }
@@ -2042,7 +2042,7 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
   .hero { min-height: 745px; }
   .hero__image { background-color: var(--green-950); }
   .hero__content { padding: 285px 4px 68px; }
-  .hero h1 { font-size: clamp(2.75rem, 13.5vw, 3.35rem); line-height: 1.12; letter-spacing: -.025em; }
+  .hero h1 { font-size: clamp(2.75rem, 13.5vw, 3.35rem); line-height: 1.24; letter-spacing: -.015em; }
   .hero__lead { margin-block: 30px 30px; line-height: 1.75; }
   .hero__actions { flex-direction: column; align-items: stretch; }
   .hero__trust { gap: 0; justify-content: space-between; }
