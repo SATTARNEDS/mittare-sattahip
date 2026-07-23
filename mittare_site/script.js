@@ -502,8 +502,16 @@ premiumCalculator?.addEventListener("input", () => setPremiumProgress(2));
 
 premiumCalculator?.addEventListener("click", (event) => {
   const brochureButton = event.target.closest("[data-plan-document]");
-  if (!brochureButton) return;
-  openPlanDocument(brochureButton.dataset.planDocument);
+  if (brochureButton) {
+    openPlanDocument(brochureButton.dataset.planDocument);
+    return;
+  }
+
+  const choiceButton = event.target.closest("[data-fixed-field]");
+  const selector = choiceButton?.closest(".fixed-package-selector");
+  if (!choiceButton || !selector) return;
+  selector.dataset[choiceButton.dataset.fixedField] = choiceButton.dataset.value;
+  syncFixedPackageSelector(selector);
 });
 
 premiumCalculator?.addEventListener("submit", (event) => {
@@ -575,6 +583,13 @@ function renderPremiumSummary(plan, result) {
   document.querySelector("#summary-price").textContent = result.price;
   document.querySelector("#summary-price-caption").textContent = result.caption;
   document.querySelector("#summary-source").innerHTML = result.source;
+  const coverageSection = document.querySelector("#summary-coverage");
+  if (coverageSection) {
+    coverageSection.hidden = !result.coverageRows?.length;
+    coverageSection.innerHTML = result.coverageRows?.length
+      ? `<h3>รายละเอียดความคุ้มครองของแพ็กเกจนี้</h3>${renderCoverageTable(result.coverageRows)}`
+      : "";
+  }
 }
 
 function formatCurrency(value) {
@@ -662,20 +677,14 @@ function renderPremiumFields() {
 
   if (fixedCatalog) {
     container.innerHTML = `
-      <div class="form-row">
-        <label for="fixed-premium-option">เลือกทุนและแผนจากโบรชัวร์</label>
-        <select id="fixed-premium-option" name="fixedPremiumOption" required>
-          ${fixedCatalog.plans.map(([value, label, price]) =>
-            `<option value="${escapeAttribute(value)}">${escapeAttribute(label)} — ${formatCurrency(price)}</option>`
-          ).join("")}
-        </select>
-      </div>
+      ${renderFixedPackageSelector(plan, fixedCatalog)}
       <div class="brochure-inline-note">
         <strong>ราคาเดียวกับเอกสารแผน</strong>
         <span>ระบบจะแสดงราคาที่ระบุไว้ในโบรชัวร์โดยตรง และเปิดเอกสารฉบับเต็มให้ตรวจเงื่อนไขได้</span>
         <button type="button" data-plan-document="${escapeAttribute(plan.id)}">เปิดโบรชัวร์แผนนี้ →</button>
       </div>
     `;
+    syncFixedPackageSelector(container.querySelector(".fixed-package-selector"));
     return;
   }
 
@@ -801,6 +810,129 @@ function buildQuoteRequest(plan, formData) {
     details: [...details, ["ขั้นตอนถัดไป", "ทีมงานตรวจเงื่อนไขและยืนยันเบี้ยจริง"]],
     source: `${sourceLink(officialRateSources.products)}<br><a href="${officialDigitalContentUrl}" target="_blank" rel="noopener">ดู Digital Content ทางการของมิตรแท้ ↗</a>`
   };
+}
+
+function getFixedOptionMeta([value, label, price]) {
+  const tierCode = value.split("-")[0];
+  const tier = { pn: "แพลทินัม", po: "โกลด์", pq: "ซิลเวอร์", silver: "ซิลเวอร์" }[tierCode];
+  const insuredAmount = Number(value.match(/-(\d+)/)?.[1] || 0) * 1000;
+  const noDeductible = value.endsWith("-no-deduct");
+  return {
+    value,
+    label,
+    price,
+    tier,
+    insuredAmount,
+    deductible: noDeductible ? 0 : 2000
+  };
+}
+
+function renderChoiceButtons(field, items, selectedValue, formatter = (value) => value) {
+  return items.map((value) => `
+    <button class="${String(value) === String(selectedValue) ? "is-active" : ""}"
+      type="button"
+      data-fixed-field="${field}"
+      data-value="${escapeAttribute(value)}"
+      aria-pressed="${String(value) === String(selectedValue)}">
+      ${formatter(value)}
+    </button>
+  `).join("");
+}
+
+function renderFixedPackageSelector(plan, catalog) {
+  const options = catalog.plans.map(getFixedOptionMeta);
+  const initial = options[0];
+  const tiers = [...new Set(options.map((option) => option.tier))];
+  const insuredAmounts = [...new Set(options.map((option) => option.insuredAmount))];
+  const deductibles = [...new Set(options.map((option) => option.deductible))];
+
+  return `
+    <section class="fixed-package-selector"
+      data-plan-id="${escapeAttribute(plan.id)}"
+      data-tier="${escapeAttribute(initial.tier)}"
+      data-insured-amount="${initial.insuredAmount}"
+      data-deductible="${initial.deductible}">
+      <input type="hidden" name="fixedPremiumOption" value="${escapeAttribute(initial.value)}">
+      <div class="fixed-choice-group" ${tiers.length === 1 ? "hidden" : ""}>
+        <span class="fixed-choice-label">1. เลือกระดับแพ็กเกจ</span>
+        <div class="fixed-choice-buttons fixed-choice-buttons--tier" role="group" aria-label="ระดับแพ็กเกจ">
+          ${renderChoiceButtons("tier", tiers, initial.tier, (tier) => `<strong>${tier}</strong><small>${tier === "แพลทินัม" ? "วงเงินเสริมสูงสุด" : tier === "โกลด์" ? "สมดุลราคาและความคุ้มครอง" : "เบี้ยประหยัด"}</small>`)}
+        </div>
+      </div>
+      <div class="fixed-choice-group">
+        <span class="fixed-choice-label">2. เลือกทุนรถเสียหายจากการชน</span>
+        <div class="fixed-choice-buttons fixed-choice-buttons--amount" role="group" aria-label="ทุนรถเสียหายจากการชน">
+          ${renderChoiceButtons("insuredAmount", insuredAmounts, initial.insuredAmount, (amount) => `<strong>${new Intl.NumberFormat("th-TH").format(amount)}</strong><small>บาท</small>`)}
+        </div>
+      </div>
+      <div class="fixed-choice-group">
+        <span class="fixed-choice-label">3. เลือกค่าเสียหายส่วนแรก</span>
+        <div class="fixed-choice-buttons fixed-choice-buttons--deductible" role="group" aria-label="ค่าเสียหายส่วนแรก">
+          ${renderChoiceButtons("deductible", deductibles, initial.deductible, (amount) => `<strong>${amount ? formatCurrency(amount) : "ไม่มี Deduct"}</strong><small>${amount ? "ประหยัดค่าเบี้ย" : "ไม่เสียส่วนแรกตามแผน"}</small>`)}
+        </div>
+      </div>
+      <div class="fixed-selection-result" aria-live="polite"></div>
+    </section>
+  `;
+}
+
+function syncFixedPackageSelector(selector) {
+  if (!selector) return;
+  const catalog = fixedPremiumCatalog[selector.dataset.planId];
+  const options = catalog.plans.map(getFixedOptionMeta);
+  const selected = options.find((option) =>
+    option.tier === selector.dataset.tier
+    && option.insuredAmount === Number(selector.dataset.insuredAmount)
+    && option.deductible === Number(selector.dataset.deductible)
+  ) || options[0];
+
+  selector.querySelector('[name="fixedPremiumOption"]').value = selected.value;
+  selector.querySelectorAll("[data-fixed-field]").forEach((button) => {
+    const field = button.dataset.fixedField;
+    const isActive = String(selected[field]) === button.dataset.value;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+
+  const coverageRows = getFixedCoverageRows(selector.dataset.planId, selected);
+  selector.querySelector(".fixed-selection-result").innerHTML = `
+    <header>
+      <span>แพ็กเกจที่เลือก</span>
+      <strong>${escapeAttribute(selected.tier)} · ทุน ${formatCurrency(selected.insuredAmount)}</strong>
+      <b>${formatCurrency(selected.price)}</b>
+      <small>เบี้ยรวมภาษีอากร</small>
+    </header>
+    <h4>ตารางรายละเอียดความคุ้มครอง</h4>
+    ${renderCoverageTable(coverageRows)}
+  `;
+}
+
+function getFixedCoverageRows(planId, option) {
+  const isTwoPlus = planId === "motor-permpoon";
+  const isSilver = option.tier === "ซิลเวอร์";
+  return [
+    ["รถเสียหายจากการชนกับยานพาหนะทางบก", formatCurrency(option.insuredAmount)],
+    ["รถสูญหาย / ไฟไหม้", isTwoPlus ? formatCurrency(option.insuredAmount) : "ไม่คุ้มครอง"],
+    ["ชีวิตหรือร่างกายบุคคลภายนอก", "500,000 บาท/คน · 20,000,000 บาท/ครั้ง"],
+    ["ทรัพย์สินบุคคลภายนอก", isSilver ? "1,000,000 บาท/ครั้ง" : "2,000,000 บาท/ครั้ง"],
+    ["อุบัติเหตุส่วนบุคคล ผู้ขับขี่/ผู้โดยสาร", isSilver ? "50,000 บาท/คน" : "150,000 บาท/คน"],
+    ["ค่ารักษาพยาบาล", isSilver ? "200,000 บาท/คน" : "600,000 บาท/คน"],
+    ["ประกันตัวผู้ขับขี่", isSilver ? "200,000 บาท/ครั้ง" : "600,000 บาท/ครั้ง"],
+    ["ค่าเสียหายส่วนแรก", option.deductible ? formatCurrency(option.deductible) : "ไม่มี"]
+  ];
+}
+
+function renderCoverageTable(rows) {
+  return `
+    <div class="coverage-table-scroll" tabindex="0" aria-label="ตารางรายละเอียดความคุ้มครอง">
+      <table class="coverage-table">
+        <thead><tr><th scope="col">ความคุ้มครอง</th><th scope="col">วงเงิน / เงื่อนไข</th></tr></thead>
+        <tbody>${rows.map(([label, value]) => `
+          <tr><th scope="row">${escapeAttribute(label)}</th><td>${escapeAttribute(value)}</td></tr>
+        `).join("")}</tbody>
+      </table>
+    </div>
+  `;
 }
 
 function calculateEstimatedPremium(plan, formData) {
@@ -1124,6 +1256,7 @@ function calculateFixedPremium(plan, formData) {
       ["ตัวเลือกจากโบรชัวร์", label],
       ["เบี้ยรวมภาษีอากร", formatCurrency(price)]
     ],
+    coverageRows: getFixedCoverageRows(plan.id, getFixedOptionMeta(selectedPlan)),
     source: `แหล่งข้อมูล: โบรชัวร์ผลิตภัณฑ์ที่แสดงในเว็บไซต์นี้ (${catalog.documentDate})<br><a href="${officialDigitalContentUrl}" target="_blank" rel="noopener">ตรวจสอบ Digital Content ทางการของมิตรแท้ ↗</a>`
   };
 }
