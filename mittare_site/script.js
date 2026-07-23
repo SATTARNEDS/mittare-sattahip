@@ -1,3 +1,35 @@
+function renderSharedSiteNavigation() {
+  const currentHeader = document.querySelector(".site-header");
+  if (!currentHeader) return;
+  const currentPath = window.location.pathname;
+  const isAgentPage = currentPath.endsWith("/agent-dashboard.html");
+  const isCustomerPage = currentPath.endsWith("/customer-status.html");
+
+  currentHeader.outerHTML = `
+    <header class="site-header" id="top"><div class="container nav-wrap">
+      <a class="brand" href="/" aria-label="Mittare Sattahip หน้าแรก"><span class="brand__mark" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M32 54S8 42 8 22C8 12 14 7 22 7c5 0 8 2 10 6 2-4 5-6 10-6 8 0 14 5 14 15 0 20-24 32-24 32Z"/><path d="m21 31 7 7 15-16"/></svg></span><span><strong>Mittare</strong><small>SATTAHIP</small></span></a>
+      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-navigation"><span class="sr-only">เปิดเมนู</span><span></span><span></span><span></span></button>
+      <nav class="main-nav" id="main-navigation" aria-label="เมนูหลัก">
+        <details class="mega-nav"><summary>ซื้อประกัน <span aria-hidden="true">⌄</span></summary><div class="mega-nav__panel">
+          <div class="mega-nav__intro"><small>เลือกความคุ้มครอง</small><strong>ประกันที่เหมาะกับชีวิต<br>และงานของคุณ</strong><a href="/#premium-check">ลองเช็กเบี้ยทันที →</a></div>
+          <div class="mega-nav__group"><h3>รถยนต์และรถจักรยานยนต์</h3><a href="/insurance.html?category=motor&amp;plan=motor-1">ประเภท 1</a><a href="/insurance.html?category=motor&amp;plan=motor-2plus">ประเภท 2+</a><a href="/insurance.html?category=motor&amp;plan=motor-3plus">ประเภท 3+</a><a href="/insurance.html?category=motor&amp;plan=motor-compulsory">พ.ร.บ.</a><a class="mega-nav__all" href="/insurance.html?category=motor">ดูแผนรถและจักรยานยนต์ทั้งหมด</a></div>
+          <div class="mega-nav__group"><h3>บ้านและบุคคล</h3><a href="/insurance.html?category=property">บ้านและทรัพย์สิน</a><a href="/insurance.html?category=personal&amp;plan=pa1">อุบัติเหตุส่วนบุคคล</a><a href="/insurance.html?category=personal&amp;plan=income-hospital">ชดเชยรายได้</a><a href="/insurance.html?category=personal&amp;plan=golf">ประกันสำหรับนักกอล์ฟ</a></div>
+          <div class="mega-nav__group"><h3>ธุรกิจและเฉพาะทาง</h3><a href="/insurance.html?category=business&amp;plan=sme">ร้านค้าและ SME</a><a href="/insurance.html?category=business&amp;plan=public-liability">ความรับผิดต่อบุคคลภายนอก</a><a href="/insurance.html?category=specialty&amp;plan=drone">โดรน</a><a href="/insurance.html?category=specialty&amp;plan=fuel-station">สถานีบริการเชื้อเพลิง</a></div>
+        </div></details>
+        <details class="mega-nav mega-nav--service"><summary>บริการลูกค้า <span aria-hidden="true">⌄</span></summary><div class="mega-nav__panel">
+          <div class="mega-nav__intro"><small>ดูแลหลังซื้อ</small><strong>เข้าถึงทุกบริการ<br>ได้จากจุดเดียว</strong><a href="/customer-status.html">เช็กสถานะกรมธรรม์ →</a></div>
+          <div class="mega-nav__group"><h3>กรมธรรม์ของฉัน</h3><a href="/customer-status.html">เช็กสถานะและวันครบกำหนด</a><a href="/#quote">แจ้งข้อมูลเพื่อต่ออายุ</a><a href="https://www.mittare.com/privacy-policy/" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัว ↗</a></div>
+          <div class="mega-nav__group"><h3>สินไหมและช่วยเหลือ</h3><a href="https://www.mittare.com/online-claims/" target="_blank" rel="noopener">แจ้งเคลมออนไลน์ ↗</a><a href="https://www.mittare.com/claims-information/#directories" target="_blank" rel="noopener">ค้นหาอู่และโรงพยาบาล ↗</a><a href="tel:1741">สายด่วนอุบัติเหตุ 1741</a></div>
+          <div class="mega-nav__group"><h3>เครื่องมือ</h3><a href="/#premium-check">ทดลองเช็กเบี้ย</a><a href="/exam/">ฝึกทำข้อสอบ</a><a class="admin-nav-entry${isAgentPage ? " is-active" : ""}" href="/agent-dashboard.html">หลังบ้านตัวแทน</a></div>
+        </div></details>
+        <a href="/#why-us">ทีมของเรา</a><a href="/customer-status.html"${isCustomerPage ? ' class="is-active" aria-current="page"' : ""}>เช็กสถานะ</a><a class="button button--small button--dark" href="/#quote">ติดต่อเรา</a>
+        ${isAgentPage ? '<span class="agent-private-nav shared-agent-actions" id="agent-private-nav" hidden><a href="#policy-form">เพิ่มกรมธรรม์</a><a href="#policy-list">รายการติดตาม</a><button class="text-button" id="logout-button" type="button">ออกจากระบบ</button></span>' : ""}
+      </nav>
+    </div></header>`;
+}
+
+renderSharedSiteNavigation();
+
 const menuButton = document.querySelector(".menu-toggle");
 const mainNavigation = document.querySelector(".main-nav");
 const quoteForm = document.querySelector("#quote-form");
