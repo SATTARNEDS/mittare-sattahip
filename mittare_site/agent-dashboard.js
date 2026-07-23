@@ -56,6 +56,7 @@ let reportOverview = null;
 let linePushConfigured = false;
 let adminLineRecipientConfigured = false;
 let adminUser = null;
+let csrfToken = "";
 
 function setAgentLoading(isLoading, message = "กำลังเตรียมข้อมูลหลังบ้าน") {
   if (!agentLoading) return;
@@ -190,12 +191,17 @@ const productMediaCategories = {
 };
 
 async function apiFetch(url, options = {}) {
+  const method = (options.method || "GET").toUpperCase();
+  const requestHeaders = { ...(options.headers || {}) };
+  if (!["GET", "HEAD", "OPTIONS"].includes(method) && csrfToken) {
+    requestHeaders["X-CSRF-Token"] = csrfToken;
+  }
   const response = await fetch(url, {
     credentials: "same-origin",
     ...options,
     headers: options.body instanceof FormData
-      ? options.headers
-      : { "Content-Type": "application/json", ...(options.headers || {}) }
+      ? requestHeaders
+      : { "Content-Type": "application/json", ...requestHeaders }
   });
   const contentType = response.headers.get("content-type") || "";
   const payload = contentType.includes("application/json") ? await response.json() : null;
@@ -211,6 +217,7 @@ async function initializeAgentDashboard() {
     const session = await apiFetch("/api/session");
     linePushConfigured = Boolean(session.linePushConfigured);
     adminUser = session.adminUser || null;
+    csrfToken = session.csrfToken || "";
     setAuthenticated(session.authenticated);
     if (session.authenticated) await Promise.all([refreshSettings(), refreshPolicies(), refreshReports(), refreshProductMedia()]);
   } catch (error) {
@@ -1171,6 +1178,7 @@ loginForm?.addEventListener("submit", async (event) => {
       body: JSON.stringify({ username, password })
     });
     adminUser = sessionPayload.adminUser || null;
+    csrfToken = sessionPayload.csrfToken || "";
     loginForm.reset();
     document.querySelector("#admin-username").value = adminUser?.username || "admin";
     setAuthenticated(true);
@@ -1188,6 +1196,7 @@ logoutButton?.addEventListener("click", async () => {
   productMedia = {};
   reportOverview = null;
   adminUser = null;
+  csrfToken = "";
   adminLineRecipientConfigured = false;
   setAuthenticated(false);
   renderReports();

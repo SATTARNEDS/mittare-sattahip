@@ -191,6 +191,16 @@ customerLookupForm?.addEventListener("submit", async (event) => {
     focusCustomerResults();
     return;
   }
+  const phoneDigits = phone.replace(/\D/g, "");
+  if (phone && (phoneDigits.length < 9 || phoneDigits.length > 15)) {
+    customerLookupFeedback.textContent = "กรุณากรอกเบอร์โทรเต็ม 9-15 หลัก";
+    renderCustomerNotice("เบอร์โทรยังไม่ครบ", "กรอกหมายเลขโทรศัพท์เต็มเพื่อป้องกันการเดาข้อมูลลูกค้า");
+    return;
+  }
+  if (reference && reference.length < 6) {
+    customerLookupFeedback.textContent = "เลขอ้างอิงต้องมีอย่างน้อย 6 ตัวอักษร";
+    return;
+  }
   customerLookupFeedback.textContent = "กำลังตรวจสอบข้อมูล...";
   renderCustomerNotice("กำลังตรวจสอบข้อมูล", "ระบบกำลังค้นหาสถานะกรมธรรม์จากข้อมูลที่กรอก");
   setCustomerLoading(true);

@@ -10,10 +10,15 @@ import base64
 import hashlib
 import hmac
 import io
+import math
+import re
+import time
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from functools import wraps
+from contextlib import contextmanager
 
 from flask import (
     Flask,
@@ -39,6 +44,10 @@ DATABASE_PATH = INSTANCE_DIR / "mittare.sqlite3"
 ALLOWED_UPLOAD_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "pdf", "doc", "docx", "xls", "xlsx"}
 ALLOWED_PRODUCT_MEDIA_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "pdf"}
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+LOGIN_MAX_FAILURES = 5
+LOGIN_BLOCK_SECONDS = 15 * 60
+PUBLIC_LOOKUP_LIMIT = 10
+PUBLIC_LOOKUP_WINDOW_SECONDS = 60
 DEFAULT_ADMIN_LINE_USER_ID = "Ueaebf5b870fcdd317383855ff445e460"
 
 DEFAULT_PRODUCT_MEDIA = {
@@ -90,10 +99,15 @@ ACTIVITY_TYPE_LABELS = {
 
 def create_app() -> Flask:
     app = Flask(__name__, static_folder=None)
-    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-before-production")
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
     app.config["SESSION_COOKIE_NAME"] = "mittare_site_session"
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_SECURE"] = os.environ.get("COOKIE_SECURE", "1") == "1"
+    app.config["PERMANENT_SESSION_LIFETIME"] = 60 * 60 * 8
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
-    app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD", "admin123")
+    app.config["MAX_FORM_MEMORY_SIZE"] = 2 * 1024 * 1024
+    app.config["MAX_FORM_PARTS"] = 30
     app.config["LINE_CHANNEL_ACCESS_TOKEN"] = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
     app.config["LINE_CHANNEL_SECRET"] = os.environ.get("LINE_CHANNEL_SECRET", "")
     app.config["ADMIN_LINE_USER_ID"] = os.environ.get("ADMIN_LINE_USER_ID", DEFAULT_ADMIN_LINE_USER_ID)
@@ -106,6 +120,24 @@ def create_app() -> Flask:
     @app.errorhandler(HTTPException)
     def handle_http_error(error: HTTPException):
         return jsonify({"error": error.description}), error.code
+
+    @app.after_request
+    def add_security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; style-src 'self'; "
+            "img-src 'self' data:; connect-src 'self'; font-src 'self'; "
+            "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        )
+        if request.is_secure or request.headers.get("X-Forwarded-Proto", "").lower() == "https":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        if request.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+        return response
 
     @app.get("/")
     def home():
@@ -141,26 +173,50 @@ def create_app() -> Flask:
         return jsonify({
             "authenticated": is_authenticated(),
             "adminUser": current_admin_user(),
+            "csrfToken": session.get("csrf_token", "") if is_authenticated() else "",
             "linePushConfigured": bool(app.config["LINE_CHANNEL_ACCESS_TOKEN"]),
             "lineWebhookConfigured": bool(app.config["LINE_CHANNEL_SECRET"]),
         })
 
     @app.post("/api/session")
     def login():
-        data = request.get_json(silent=True) or {}
-        username = str(data.get("username", "admin")).strip() or "admin"
-        password = str(data.get("password", ""))
+        data = json_object()
+        username = clean_text(data.get("username", "admin"), 80, "ชื่อผู้ใช้").casefold()
+        raw_password = data.get("password", "")
+        if not isinstance(raw_password, str) or len(raw_password) > 256:
+            raise BadRequest("รหัสผ่านมีรูปแบบไม่ถูกต้อง")
+        password = raw_password
         with get_db() as db:
+            throttle_key = f"{request.remote_addr or 'unknown'}|{username.casefold()}"[:180]
+            throttle = db.execute(
+                "SELECT * FROM login_throttle WHERE throttle_key = ?", (throttle_key,)
+            ).fetchone()
+            now_epoch = int(time.time())
+            if throttle and throttle["blocked_until"] > now_epoch:
+                return jsonify({"error": "เข้าสู่ระบบผิดหลายครั้ง กรุณารอ 15 นาทีแล้วลองใหม่"}), 429
             admin_user = db.execute(
                 "SELECT * FROM admin_users WHERE username = ? AND is_active = 1",
                 (username,),
             ).fetchone()
-        password_ok = bool(admin_user and check_password_hash(admin_user["password_hash"], password))
-        # รองรับ deployment เดิมที่ยังส่งแค่ password ในช่วงเปลี่ยนผ่าน
-        legacy_ok = username == "admin" and secrets.compare_digest(password, app.config["ADMIN_PASSWORD"])
-        if not password_ok and not legacy_ok:
+            password_ok = bool(admin_user and check_password_hash(admin_user["password_hash"], password))
+            if not password_ok:
+                failures = (throttle["failure_count"] if throttle else 0) + 1
+                blocked_until = now_epoch + LOGIN_BLOCK_SECONDS if failures >= LOGIN_MAX_FAILURES else 0
+                db.execute(
+                    """INSERT INTO login_throttle(throttle_key, failure_count, blocked_until, updated_at)
+                    VALUES (?, ?, ?, ?) ON CONFLICT(throttle_key) DO UPDATE SET
+                    failure_count=excluded.failure_count, blocked_until=excluded.blocked_until,
+                    updated_at=excluded.updated_at""",
+                    (throttle_key, failures, blocked_until, utc_now()),
+                )
+                return jsonify({"error": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"}), 401
+            db.execute("DELETE FROM login_throttle WHERE throttle_key = ?", (throttle_key,))
+        if not password_ok:
             return jsonify({"error": "รหัสผ่านไม่ถูกต้อง"}), 401
+        session.clear()
+        session.permanent = True
         session["admin_authenticated"] = True
+        session["csrf_token"] = secrets.token_urlsafe(32)
         if admin_user:
             session["admin_user"] = {
                 "username": admin_user["username"],
@@ -169,9 +225,10 @@ def create_app() -> Flask:
             }
         else:
             session["admin_user"] = {"username": "admin", "displayName": "Admin", "role": "admin"}
-        return jsonify({"authenticated": True, "adminUser": current_admin_user()})
+        return jsonify({"authenticated": True, "adminUser": current_admin_user(), "csrfToken": session["csrf_token"]})
 
     @app.delete("/api/session")
+    @require_admin
     def logout():
         session.clear()
         return jsonify({"authenticated": False})
@@ -390,15 +447,15 @@ def create_app() -> Flask:
     @app.post("/api/policies/<int:policy_id>/activities")
     @require_admin
     def create_policy_activity(policy_id: int):
-        data = request.get_json(silent=True) or {}
-        note = str(data.get("note", "")).strip()
+        data = json_object()
+        note = clean_text(data.get("note", ""), 2000, "บันทึก")
         if not note:
             raise BadRequest("กรุณากรอกบันทึกการติดต่อลูกค้า")
         activity_type = str(data.get("activityType", "note")).strip()
         if activity_type not in ACTIVITY_TYPE_LABELS:
             activity_type = "note"
-        activity_date = str(data.get("activityDate", "")).strip() or datetime.now(timezone.utc).date().isoformat()
-        next_follow_up = str(data.get("nextFollowUp", "")).strip()
+        activity_date = validate_iso_date(data.get("activityDate", ""), "วันที่ติดต่อ", allow_empty=True) or datetime.now(timezone.utc).date().isoformat()
+        next_follow_up = validate_iso_date(data.get("nextFollowUp", ""), "วันติดตามครั้งถัดไป", allow_empty=True)
         now = utc_now()
         with get_db() as db:
             policy = db.execute("SELECT id FROM policies WHERE id = ?", (policy_id,)).fetchone()
@@ -436,7 +493,7 @@ def create_app() -> Flask:
     @app.put("/api/policies/<int:policy_id>/document-checklist")
     @require_admin
     def update_document_checklist(policy_id: int):
-        data = request.get_json(silent=True) or {}
+        data = json_object()
         items = sanitize_checklist_items(data.get("items", []))
         if not items:
             raise BadRequest("กรุณาเพิ่มรายการเอกสารอย่างน้อย 1 รายการ")
@@ -465,13 +522,17 @@ def create_app() -> Flask:
     @app.post("/api/line/webhook")
     def line_webhook():
         channel_secret = app.config["LINE_CHANNEL_SECRET"]
+        if not channel_secret:
+            return jsonify({"error": "LINE webhook is not configured"}), 503
         body = request.get_data()
         signature = request.headers.get("x-line-signature", "")
-        if channel_secret and not verify_line_signature(channel_secret, body, signature):
+        if not verify_line_signature(channel_secret, body, signature):
             return jsonify({"error": "Invalid LINE signature"}), 400
 
-        payload = request.get_json(silent=True) or {}
+        payload = json_object()
         events = payload.get("events", [])
+        if not isinstance(events, list) or len(events) > 100:
+            raise BadRequest("LINE events ไม่ถูกต้องหรือมีจำนวนมากเกินไป")
         with get_db() as db:
             for event in events:
                 save_line_webhook_event(db, event)
@@ -493,8 +554,8 @@ def create_app() -> Flask:
         if not token:
             return jsonify({"error": "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์"}), 400
 
-        data = request.get_json(silent=True) or {}
-        custom_message = str(data.get("message", "")).strip()
+        data = json_object()
+        custom_message = clean_text(data.get("message", ""), 4000, "ข้อความ", allow_empty=True)
         with get_db() as db:
             admin_line_user_id = get_admin_line_user_id(app)
             if not admin_line_user_id:
@@ -529,8 +590,8 @@ def create_app() -> Flask:
         if not token:
             return jsonify({"error": "ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์"}), 400
 
-        data = request.get_json(silent=True) or {}
-        message = str(data.get("message", "")).strip()
+        data = json_object()
+        message = clean_text(data.get("message", ""), 4000, "ข้อความ")
         if not message:
             raise BadRequest("กรุณาสร้างข้อความก่อนส่ง LINE Push")
 
@@ -598,6 +659,7 @@ def create_app() -> Flask:
                 extension = get_extension(file.filename)
                 if extension not in ALLOWED_PRODUCT_MEDIA_EXTENSIONS:
                     raise BadRequest(f"ชนิดไฟล์ {file.filename} ยังไม่รองรับ")
+                validate_uploaded_file(file, extension)
 
                 is_image = extension in {"jpg", "jpeg", "png", "webp"}
                 if media_type == "cover" and not is_image:
@@ -739,19 +801,24 @@ def create_app() -> Flask:
 
     @app.post("/api/customer/policies")
     def customer_policy_lookup():
-        data = request.get_json(silent=True) or {}
-        phone = normalize_phone(data.get("phone", ""))
-        reference = str(data.get("reference", "")).strip()
+        if not consume_public_lookup_quota(request.remote_addr or "unknown"):
+            return jsonify({"error": "ค้นหาบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่"}), 429
+        data = json_object()
+        phone_input = clean_text(data.get("phone", ""), 30, "เบอร์โทร", allow_empty=True)
+        phone = normalize_phone(phone_input)
+        reference = clean_text(data.get("reference", ""), 80, "เลขอ้างอิง", allow_empty=True)
         if not phone and not reference:
             return jsonify({"error": "กรุณากรอกเบอร์โทร หรือเลขอ้างอิง/เลขกรมธรรม์ อย่างน้อยหนึ่งช่อง"}), 400
-        if phone and len(phone) < 6:
-            return jsonify({"error": "กรุณากรอกเบอร์โทรอย่างน้อย 6 หลักเพื่อความปลอดภัย"}), 400
+        if phone and not 9 <= len(phone) <= 15:
+            return jsonify({"error": "กรุณากรอกเบอร์โทรเต็ม 9-15 หลัก"}), 400
+        if reference and len(reference) < 6:
+            return jsonify({"error": "เลขอ้างอิงต้องมีอย่างน้อย 6 ตัวอักษร"}), 400
 
         filters = []
         params: list[str] = []
         if phone:
-            filters.append("REPLACE(REPLACE(REPLACE(customer_phone, '-', ''), ' ', ''), '+66', '0') LIKE ?")
-            params.append(f"%{phone[-6:]}")
+            filters.append("REPLACE(REPLACE(REPLACE(customer_phone, '-', ''), ' ', ''), '+66', '0') = ?")
+            params.append(phone)
         if reference:
             filters.append("(public_ref COLLATE NOCASE = ? OR policy_number COLLATE NOCASE = ?)")
             params.extend([reference, reference])
@@ -760,9 +827,9 @@ def create_app() -> Flask:
             rows = db.execute(
                 f"""
                 SELECT * FROM policies
-                WHERE COALESCE(deleted_at, '') = '' AND ({" OR ".join(filters)})
+                WHERE COALESCE(deleted_at, '') = '' AND ({" AND ".join(filters)})
                 ORDER BY end_date DESC
-                LIMIT 20
+                LIMIT 5
                 """,
                 params,
             ).fetchall()
@@ -772,12 +839,16 @@ def create_app() -> Flask:
 
 
 def require_admin(view):
+    @wraps(view)
     def wrapped(*args, **kwargs):
         if not is_authenticated():
             return jsonify({"error": "กรุณาเข้าสู่ระบบหลังบ้าน"}), 401
+        if request.method not in {"GET", "HEAD", "OPTIONS"}:
+            supplied_token = request.headers.get("X-CSRF-Token", "")
+            expected_token = session.get("csrf_token", "")
+            if not supplied_token or not expected_token or not secrets.compare_digest(supplied_token, expected_token):
+                return jsonify({"error": "คำขอหมดอายุ กรุณาเข้าสู่ระบบใหม่"}), 403
         return view(*args, **kwargs)
-
-    wrapped.__name__ = view.__name__
     return wrapped
 
 
@@ -803,11 +874,41 @@ def current_admin_actor() -> str:
     return admin_user["displayName"] or admin_user["username"]
 
 
-def get_db() -> sqlite3.Connection:
+@contextmanager
+def get_db():
     db = sqlite3.connect(DATABASE_PATH)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys = ON")
-    return db
+    try:
+        with db:
+            yield db
+    finally:
+        db.close()
+
+
+def consume_public_lookup_quota(client_key: str) -> bool:
+    now_epoch = int(time.time())
+    safe_key = hashlib.sha256(client_key.encode("utf-8", errors="ignore")).hexdigest()
+    with get_db() as db:
+        row = db.execute(
+            "SELECT request_count, window_started FROM public_lookup_throttle WHERE client_key = ?",
+            (safe_key,),
+        ).fetchone()
+        if row is None or now_epoch - row["window_started"] >= PUBLIC_LOOKUP_WINDOW_SECONDS:
+            db.execute(
+                """INSERT INTO public_lookup_throttle(client_key, request_count, window_started, updated_at)
+                VALUES (?, 1, ?, ?) ON CONFLICT(client_key) DO UPDATE SET
+                request_count=1, window_started=excluded.window_started, updated_at=excluded.updated_at""",
+                (safe_key, now_epoch, utc_now()),
+            )
+            return True
+        if row["request_count"] >= PUBLIC_LOOKUP_LIMIT:
+            return False
+        db.execute(
+            "UPDATE public_lookup_throttle SET request_count=request_count+1, updated_at=? WHERE client_key=?",
+            (utc_now(), safe_key),
+        )
+        return True
 
 
 def initialize_database() -> None:
@@ -835,6 +936,20 @@ def initialize_database() -> None:
               deleted_at TEXT DEFAULT '',
               deleted_by TEXT DEFAULT '',
               created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS login_throttle (
+              throttle_key TEXT PRIMARY KEY,
+              failure_count INTEGER NOT NULL DEFAULT 0,
+              blocked_until INTEGER NOT NULL DEFAULT 0,
+              updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS public_lookup_throttle (
+              client_key TEXT PRIMARY KEY,
+              request_count INTEGER NOT NULL DEFAULT 0,
+              window_started INTEGER NOT NULL,
               updated_at TEXT NOT NULL
             );
 
@@ -972,6 +1087,7 @@ def initialize_database() -> None:
         ensure_column(db, "product_media", "source", "TEXT NOT NULL DEFAULT 'upload'")
         db.execute("CREATE INDEX IF NOT EXISTS idx_policies_deleted_at ON policies(deleted_at)")
         db.execute("UPDATE policies SET sales_status = 'waiting' WHERE sales_status = 'claim-followup'")
+        disable_insecure_default_admins(db)
         ensure_default_admin_user(db)
     migrate_product_media_json_to_database()
     seed_default_product_media()
@@ -986,7 +1102,10 @@ def ensure_column(db: sqlite3.Connection, table_name: str, column_name: str, col
 
 def ensure_default_admin_user(db: sqlite3.Connection) -> None:
     now = utc_now()
-    password = os.environ.get("ADMIN_PASSWORD", "admin123")
+    password = os.environ.get("ADMIN_PASSWORD", "")
+    if len(password) < 12:
+        # ไม่สร้างบัญชีจากรหัสผ่านเริ่มต้นหรือรหัสผ่านที่สั้นเกินไป
+        return
     username = os.environ.get("ADMIN_USERNAME", "admin").strip() or "admin"
     display_name = os.environ.get("ADMIN_DISPLAY_NAME", "ผู้ดูแลระบบ").strip() or "ผู้ดูแลระบบ"
     existing = db.execute("SELECT id FROM admin_users WHERE username = ?", (username,)).fetchone()
@@ -999,6 +1118,18 @@ def ensure_default_admin_user(db: sqlite3.Connection) -> None:
         """,
         (username, display_name, generate_password_hash(password), "admin", now, now),
     )
+
+
+def disable_insecure_default_admins(db: sqlite3.Connection) -> None:
+    """ปิดบัญชีเก่าที่เคยถูกสร้างด้วยรหัสผ่านตัวอย่างของระบบ"""
+    rows = db.execute("SELECT id, password_hash FROM admin_users WHERE is_active = 1").fetchall()
+    insecure_ids = [row["id"] for row in rows if check_password_hash(row["password_hash"], "admin123")]
+    if insecure_ids:
+        placeholders = ",".join("?" for _ in insecure_ids)
+        db.execute(
+            f"UPDATE admin_users SET is_active = 0, updated_at = ? WHERE id IN ({placeholders})",
+            (utc_now(), *insecure_ids),
+        )
 
 
 def get_setting(db: sqlite3.Connection, key: str) -> str:
@@ -1193,38 +1324,82 @@ def parse_iso_date(value: str | None):
         return None
 
 
+def json_object() -> dict[str, Any]:
+    if not request.is_json:
+        raise BadRequest("คำขอต้องเป็น JSON")
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise BadRequest("โครงสร้าง JSON ต้องเป็น object")
+    return payload
+
+
+def clean_text(value: Any, max_length: int, field_name: str, allow_empty: bool = False) -> str:
+    if isinstance(value, (dict, list, tuple)):
+        raise BadRequest(f"{field_name} มีรูปแบบไม่ถูกต้อง")
+    text = " ".join(str(value or "").split())
+    # ตัด control characters ที่ใช้ซ่อน payload หรือทำ log injection
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+    if not text and not allow_empty:
+        raise BadRequest(f"กรุณากรอก{field_name}")
+    if len(text) > max_length:
+        raise BadRequest(f"{field_name}ยาวเกิน {max_length} ตัวอักษร")
+    return text
+
+
+def validate_iso_date(value: Any, field_name: str, allow_empty: bool = False) -> str:
+    text = clean_text(value, 10, field_name, allow_empty=allow_empty)
+    if not text:
+        return ""
+    try:
+        datetime.strptime(text, "%Y-%m-%d")
+    except ValueError as error:
+        raise BadRequest(f"{field_name}ต้องอยู่ในรูปแบบ YYYY-MM-DD") from error
+    return text
+
+
 def policy_payload_from_request() -> dict[str, Any]:
     form = request.form
-    customer_name = form.get("customerName", "").strip()
-    customer_phone = form.get("customerPhone", "").strip()
-    insurance_category = form.get("insuranceCategory", "").strip()
-    end_date = form.get("endDate", "").strip()
-    if not customer_name or not customer_phone or not insurance_category or not end_date:
-        raise BadRequest("กรุณากรอกชื่อลูกค้า เบอร์โทร ประเภทประกัน และวันหมดอายุ")
+    customer_name = clean_text(form.get("customerName", ""), 120, "ชื่อลูกค้า")
+    customer_phone = normalize_phone(form.get("customerPhone", ""))
+    if not 9 <= len(customer_phone) <= 15:
+        raise BadRequest("เบอร์โทรต้องมี 9-15 หลัก")
+    insurance_category = clean_text(form.get("insuranceCategory", ""), 80, "ประเภทประกัน")
+    end_date = validate_iso_date(form.get("endDate", ""), "วันหมดอายุ")
+    start_date = validate_iso_date(form.get("startDate", ""), "วันเริ่มคุ้มครอง", allow_empty=True)
+    next_follow_up = validate_iso_date(form.get("nextFollowUp", ""), "วันติดตาม", allow_empty=True)
+    sales_status = clean_text(form.get("salesStatus", "new"), 20, "สถานะ")
+    if sales_status not in SALES_STATUS_LABELS:
+        raise BadRequest("สถานะการขายไม่ถูกต้อง")
+    premium_amount = parse_float(form.get("premiumAmount"))
+    if premium_amount < 0 or premium_amount > 100_000_000:
+        raise BadRequest("จำนวนเบี้ยประกันอยู่นอกช่วงที่อนุญาต")
     return {
         "customer_name": customer_name,
         "customer_phone": customer_phone,
-        "line_name": form.get("lineName", "").strip(),
-        "line_user_id": form.get("lineUserId", "").strip(),
-        "assigned_agent": form.get("assignedAgent", "").strip(),
+        "line_name": clean_text(form.get("lineName", ""), 120, "ชื่อ LINE", allow_empty=True),
+        "line_user_id": clean_text(form.get("lineUserId", ""), 80, "LINE User ID", allow_empty=True),
+        "assigned_agent": clean_text(form.get("assignedAgent", ""), 120, "ผู้ดูแล", allow_empty=True),
         "insurance_category": insurance_category,
-        "product_name": form.get("productName", "").strip(),
-        "policy_number": form.get("policyNumber", "").strip(),
-        "insurer_name": form.get("insurerName", "").strip(),
-        "start_date": form.get("startDate", "").strip(),
+        "product_name": clean_text(form.get("productName", ""), 160, "ผลิตภัณฑ์", allow_empty=True),
+        "policy_number": clean_text(form.get("policyNumber", ""), 80, "เลขกรมธรรม์", allow_empty=True),
+        "insurer_name": clean_text(form.get("insurerName", ""), 160, "บริษัทประกัน", allow_empty=True),
+        "start_date": start_date,
         "end_date": end_date,
-        "premium_amount": parse_float(form.get("premiumAmount")),
-        "sales_status": form.get("salesStatus", "new").strip(),
-        "next_follow_up": form.get("nextFollowUp", "").strip(),
-        "customer_notes": form.get("customerNotes", "").strip(),
+        "premium_amount": premium_amount,
+        "sales_status": sales_status,
+        "next_follow_up": next_follow_up,
+        "customer_notes": clean_text(form.get("customerNotes", ""), 4000, "หมายเหตุ", allow_empty=True),
     }
 
 
 def parse_float(value: Any) -> float:
     try:
-        return float(value or 0)
+        number = float(value or 0)
+        if not math.isfinite(number):
+            raise ValueError
+        return number
     except (TypeError, ValueError):
-        return 0
+        raise BadRequest("จำนวนเงินไม่ถูกต้อง")
 
 
 def create_public_reference() -> str:
@@ -1238,6 +1413,7 @@ def save_uploaded_files(db: sqlite3.Connection, policy_id: int) -> None:
         original_filename = secure_filename(file.filename)
         if not is_allowed_upload(original_filename):
             raise BadRequest(f"ชนิดไฟล์ {file.filename} ยังไม่รองรับ")
+        validate_uploaded_file(file, get_extension(original_filename))
         stored_filename = f"{policy_id}-{secrets.token_hex(10)}-{original_filename}"
         file.save(UPLOAD_DIR / stored_filename)
         db.execute(
@@ -1258,6 +1434,38 @@ def save_uploaded_files(db: sqlite3.Connection, policy_id: int) -> None:
 
 def is_allowed_upload(filename: str) -> bool:
     return get_extension(filename) in ALLOWED_UPLOAD_EXTENSIONS
+
+
+def validate_uploaded_file(file, extension: str) -> None:
+    """ตรวจ magic bytes และโครงสร้าง Office ZIP ไม่เชื่อ MIME จาก browser"""
+    stream = file.stream
+    stream.seek(0)
+    header = stream.read(16)
+    stream.seek(0)
+    signatures = {
+        "jpg": header.startswith(b"\xff\xd8\xff"),
+        "jpeg": header.startswith(b"\xff\xd8\xff"),
+        "png": header.startswith(b"\x89PNG\r\n\x1a\n"),
+        "webp": header.startswith(b"RIFF") and header[8:12] == b"WEBP",
+        "pdf": header.startswith(b"%PDF-"),
+        "doc": header.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"),
+        "xls": header.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"),
+    }
+    valid = signatures.get(extension, False)
+    if extension in {"docx", "xlsx"} and header.startswith(b"PK"):
+        try:
+            with zipfile.ZipFile(stream) as archive:
+                names = set(archive.namelist())
+                valid = "[Content_Types].xml" in names and any(
+                    name.startswith("word/") if extension == "docx" else name.startswith("xl/")
+                    for name in names
+                )
+        except (zipfile.BadZipFile, OSError):
+            valid = False
+        finally:
+            stream.seek(0)
+    if not valid:
+        raise BadRequest(f"เนื้อหาไฟล์ {file.filename} ไม่ตรงกับชนิดไฟล์ที่อนุญาต")
 
 
 def get_extension(filename: str) -> str:
@@ -1587,12 +1795,19 @@ def verify_line_signature(channel_secret: str, body: bytes, signature: str) -> b
 
 
 def save_line_webhook_event(db: sqlite3.Connection, event: dict[str, Any]) -> None:
+    if not isinstance(event, dict):
+        raise BadRequest("LINE event มีรูปแบบไม่ถูกต้อง")
     source = event.get("source") or {}
     message = event.get("message") or {}
-    line_user_id = str(source.get("userId") or "").strip()
-    event_type = str(event.get("type") or "")
-    message_type = str(message.get("type") or "")
-    message_text = str(message.get("text") or "").strip() if message_type == "text" else ""
+    if not isinstance(source, dict) or not isinstance(message, dict):
+        raise BadRequest("LINE event มีโครงสร้างไม่ถูกต้อง")
+    line_user_id = clean_text(source.get("userId", ""), 80, "LINE User ID", allow_empty=True)
+    event_type = clean_text(event.get("type", ""), 40, "ชนิด LINE event", allow_empty=True)
+    message_type = clean_text(message.get("type", ""), 40, "ชนิดข้อความ", allow_empty=True)
+    message_text = clean_text(message.get("text", ""), 5000, "ข้อความ", allow_empty=True) if message_type == "text" else ""
+    raw_event = json.dumps(event, ensure_ascii=False)
+    if len(raw_event.encode("utf-8")) > 64 * 1024:
+        raise BadRequest("LINE event มีขนาดใหญ่เกินไป")
     now = utc_now()
 
     db.execute(
@@ -1607,7 +1822,7 @@ def save_line_webhook_event(db: sqlite3.Connection, event: dict[str, Any]) -> No
             event_type,
             message_type,
             message_text,
-            json.dumps(event, ensure_ascii=False),
+            raw_event,
             now,
         ),
     )
@@ -1660,7 +1875,7 @@ def sanitize_checklist_items(items: Any) -> list[dict[str, Any]]:
     for item in items[:40]:
         if not isinstance(item, dict):
             continue
-        label = str(item.get("label", "")).strip()[:120]
+        label = clean_text(item.get("label", ""), 120, "รายการเอกสาร", allow_empty=True)
         if not label or label in seen_labels:
             continue
         seen_labels.add(label)
