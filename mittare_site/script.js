@@ -10,6 +10,7 @@ function renderSharedSiteNavigation() {
       <a class="brand" href="/" aria-label="Mittare Sattahip หน้าแรก"><span class="brand__mark" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M32 54S8 42 8 22C8 12 14 7 22 7c5 0 8 2 10 6 2-4 5-6 10-6 8 0 14 5 14 15 0 20-24 32-24 32Z"/><path d="m21 31 7 7 15-16"/></svg></span><span><strong>Mittare</strong><small>SATTAHIP</small></span></a>
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-navigation"><span class="sr-only">เปิดเมนู</span><span></span><span></span><span></span></button>
       <nav class="main-nav" id="main-navigation" aria-label="เมนูหลัก">
+        <a href="/">หน้าแรก</a>
         <details class="mega-nav"><summary>ซื้อประกัน <span aria-hidden="true">⌄</span></summary><div class="mega-nav__panel">
           <div class="mega-nav__intro"><small>เลือกความคุ้มครอง</small><strong>ประกันที่เหมาะกับชีวิต<br>และงานของคุณ</strong><a href="/#premium-check">ลองเช็กเบี้ยทันที →</a></div>
           <div class="mega-nav__group"><h3>รถยนต์และรถจักรยานยนต์</h3><a href="/insurance.html?category=motor&amp;plan=motor-1">ประเภท 1</a><a href="/insurance.html?category=motor&amp;plan=motor-2plus">ประเภท 2+</a><a href="/insurance.html?category=motor&amp;plan=motor-3plus">ประเภท 3+</a><a href="/insurance.html?category=motor&amp;plan=motor-compulsory">พ.ร.บ.</a><a class="mega-nav__all" href="/insurance.html?category=motor">ดูแผนรถและจักรยานยนต์ทั้งหมด</a></div>
