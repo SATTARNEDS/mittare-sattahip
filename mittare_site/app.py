@@ -203,6 +203,11 @@ def create_app() -> Flask:
             ).fetchone()
             password_ok = bool(admin_user and check_password_hash(admin_user["password_hash"], password))
             if not password_ok:
+                shared_admin = authenticate_shared_admin(username, password)
+                if shared_admin:
+                    admin_user = shared_admin
+                    password_ok = True
+            if not password_ok:
                 failures = (throttle["failure_count"] if throttle else 0) + 1
                 blocked_until = now_epoch + LOGIN_BLOCK_SECONDS if failures >= LOGIN_MAX_FAILURES else 0
                 db.execute(
@@ -1127,6 +1132,33 @@ def ensure_default_admin_user(db: sqlite3.Connection) -> None:
         """,
         (username, display_name, generate_password_hash(password), "admin", now, now),
     )
+
+
+def authenticate_shared_admin(username: str, password: str) -> dict[str, str] | None:
+    """ใช้บัญชีผู้ดูแลคลังข้อสอบเป็นบัญชีกลาง โดยยังตรวจรหัสผ่านแบบ hash"""
+    shared_database_path = Path(os.environ.get("DATABASE_PATH", "")).resolve()
+    if not shared_database_path.is_file() or shared_database_path == DATABASE_PATH.resolve():
+        return None
+    try:
+        with sqlite3.connect(f"file:{shared_database_path.as_posix()}?mode=ro", uri=True) as shared_db:
+            shared_db.row_factory = sqlite3.Row
+            admin_user = shared_db.execute(
+                """
+                SELECT username, display_name, role, password_hash
+                FROM admin_users
+                WHERE username = ? AND is_active = 1
+                """,
+                (username,),
+            ).fetchone()
+    except sqlite3.Error:
+        return None
+    if not admin_user or not check_password_hash(admin_user["password_hash"], password):
+        return None
+    return {
+        "username": admin_user["username"],
+        "display_name": admin_user["display_name"],
+        "role": admin_user["role"],
+    }
 
 
 def disable_insecure_default_admins(db: sqlite3.Connection) -> None:
