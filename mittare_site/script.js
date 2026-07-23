@@ -188,6 +188,7 @@ const premiumCheckPlanIds = new Set([
   "motor-1",
   "motor-one",
   "motor-extra",
+  "motor-compulsory",
   ...Object.keys(fixedPremiumCatalog)
 ]);
 
