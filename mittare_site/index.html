@@ -264,8 +264,8 @@
         <div class="premium-workbench">
           <div class="premium-progress" aria-label="ขั้นตอนการเช็กเบี้ย">
             <div class="is-active" data-premium-step="1"><span>1</span><p><strong>เลือกประกัน</strong><small>หมวดและแผน</small></p></div>
-            <div data-premium-step="2"><span>2</span><p><strong>กรอกรายละเอียด</strong><small>ข้อมูลสำหรับประมาณการ</small></p></div>
-            <div data-premium-step="3"><span>3</span><p><strong>ดูผลสรุป</strong><small>ช่วงเบี้ยและรายการ</small></p></div>
+            <div data-premium-step="2"><span>2</span><p><strong>เลือกรายละเอียด</strong><small>ราคา Fix หรือข้อมูลตรวจสอบ</small></p></div>
+            <div data-premium-step="3"><span>3</span><p><strong>ดูผลสรุป</strong><small>ราคาและเอกสารอ้างอิง</small></p></div>
           </div>
 
           <form class="premium-calculator" id="premium-calculator">
@@ -287,7 +287,7 @@
 
             <div class="premium-form-panel">
               <div class="calculator-heading">
-                <div><span>02</span><h3>รายละเอียดสำหรับประมาณการ</h3></div>
+                <div><span>02</span><h3>รายละเอียดแผนและราคา</h3></div>
                 <button class="text-button" type="reset">ล้างข้อมูล</button>
               </div>
               <div class="premium-plan-picker form-row">
@@ -305,7 +305,7 @@
               </div>
             </div>
           </form>
-          <p class="estimate-warning">ผลลัพธ์บางแผนเป็นการประเมินเพื่อวางแผน ไม่ใช่ใบเสนอราคา เบี้ยจริงขึ้นอยู่กับข้อมูล เงื่อนไข และการพิจารณาของบริษัท</p>
+          <p class="estimate-warning">ราคา Fix แสดงตามโบรชัวร์ที่ตรวจยืนยันแล้ว ส่วนแผนที่ข้อมูลยังไม่ครบ ระบบจะส่งให้ทีมตรวจสอบโดยไม่สร้างตัวเลขประมาณการ</p>
         </div>
       </div>
     </section>
@@ -596,7 +596,7 @@
         รายละเอียดนี้จัดทำขึ้นสำหรับเว็บไซต์ Demo เพื่อช่วยทำความเข้าใจเบื้องต้น ไม่ใช่ข้อเสนอขายหรือส่วนหนึ่งของกรมธรรม์ กรุณาตรวจสอบเงื่อนไขและข้อยกเว้นก่อนตัดสินใจ
       </div>
       <div class="product-dialog__actions">
-        <button class="button button--primary" id="product-dialog-document" type="button" hidden>เปิดเอกสาร PDF ฉบับเต็ม</button>
+        <button class="button button--primary" id="product-dialog-document" type="button" hidden>เปิดโบรชัวร์ฉบับเต็ม</button>
         <a class="button button--primary" href="#premium-check" id="product-dialog-primary">ทดลองเช็กเบี้ย DIY</a>
         <a class="button button--dark" href="https://line.me/R/ti/p/@mittaresattahipdemo" target="_blank" rel="noopener">คุยผ่าน LINE</a>
       </div>

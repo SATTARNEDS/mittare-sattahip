@@ -116,7 +116,80 @@ const insuranceMedia = {
   "fuel-ctp": null
 };
 
-const premiumCheckPlanIds = new Set(["motor-1", "motor-one", "motor-extra"]);
+const officialDigitalContentUrl = "https://www.mittare.com/digital-content/";
+
+// ราคาอ้างอิงจากเอกสารแผนปี 2569 ในโฟลเดอร์ document เท่านั้น
+const fixedPremiumCatalog = {
+  "motor-permpoon": {
+    documentDate: "เริ่มคุ้มครอง 9 มีนาคม–31 ธันวาคม 2569",
+    plans: [
+      ["pn-100", "แพลทินัม · ทุน 100,000 · Deduct 2,000", 7020],
+      ["po-100", "โกลด์ · ทุน 100,000 · Deduct 2,000", 6600],
+      ["pq-100", "ซิลเวอร์ · ทุน 100,000 · Deduct 2,000", 5900],
+      ["pn-150", "แพลทินัม · ทุน 150,000 · Deduct 2,000", 7420],
+      ["po-150", "โกลด์ · ทุน 150,000 · Deduct 2,000", 7000],
+      ["pq-150", "ซิลเวอร์ · ทุน 150,000 · Deduct 2,000", 6300],
+      ["pn-200", "แพลทินัม · ทุน 200,000 · Deduct 2,000", 7820],
+      ["po-200", "โกลด์ · ทุน 200,000 · Deduct 2,000", 7400],
+      ["pq-200", "ซิลเวอร์ · ทุน 200,000 · Deduct 2,000", 6600],
+      ["pn-250", "แพลทินัม · ทุน 250,000 · Deduct 2,000", 8220],
+      ["po-250", "โกลด์ · ทุน 250,000 · Deduct 2,000", 7800],
+      ["pq-250", "ซิลเวอร์ · ทุน 250,000 · Deduct 2,000", 6900],
+      ["pn-300", "แพลทินัม · ทุน 300,000 · Deduct 2,000", 8520],
+      ["po-300", "โกลด์ · ทุน 300,000 · Deduct 2,000", 8100],
+      ["pq-300", "ซิลเวอร์ · ทุน 300,000 · Deduct 2,000", 7100],
+      ["pn-350", "แพลทินัม · ทุน 350,000 · Deduct 2,000", 8820],
+      ["po-350", "โกลด์ · ทุน 350,000 · Deduct 2,000", 8400],
+      ["pq-350", "ซิลเวอร์ · ทุน 350,000 · Deduct 2,000", 7400],
+      ["pn-100-no-deduct", "แพลทินัม · ทุน 100,000 · ไม่มี Deduct", 7720],
+      ["po-100-no-deduct", "โกลด์ · ทุน 100,000 · ไม่มี Deduct", 7300],
+      ["pq-100-no-deduct", "ซิลเวอร์ · ทุน 100,000 · ไม่มี Deduct", 6600],
+      ["pn-150-no-deduct", "แพลทินัม · ทุน 150,000 · ไม่มี Deduct", 8220],
+      ["po-150-no-deduct", "โกลด์ · ทุน 150,000 · ไม่มี Deduct", 7800],
+      ["pq-150-no-deduct", "ซิลเวอร์ · ทุน 150,000 · ไม่มี Deduct", 7100],
+      ["pn-200-no-deduct", "แพลทินัม · ทุน 200,000 · ไม่มี Deduct", 8720],
+      ["po-200-no-deduct", "โกลด์ · ทุน 200,000 · ไม่มี Deduct", 8300],
+      ["pq-200-no-deduct", "ซิลเวอร์ · ทุน 200,000 · ไม่มี Deduct", 7500],
+      ["pn-250-no-deduct", "แพลทินัม · ทุน 250,000 · ไม่มี Deduct", 9220],
+      ["po-250-no-deduct", "โกลด์ · ทุน 250,000 · ไม่มี Deduct", 8800],
+      ["pq-250-no-deduct", "ซิลเวอร์ · ทุน 250,000 · ไม่มี Deduct", 7900],
+      ["pn-300-no-deduct", "แพลทินัม · ทุน 300,000 · ไม่มี Deduct", 9720],
+      ["po-300-no-deduct", "โกลด์ · ทุน 300,000 · ไม่มี Deduct", 9300],
+      ["pq-300-no-deduct", "ซิลเวอร์ · ทุน 300,000 · ไม่มี Deduct", 8300],
+      ["pn-350-no-deduct", "แพลทินัม · ทุน 350,000 · ไม่มี Deduct", 10120],
+      ["po-350-no-deduct", "โกลด์ · ทุน 350,000 · ไม่มี Deduct", 9700],
+      ["pq-350-no-deduct", "ซิลเวอร์ · ทุน 350,000 · ไม่มี Deduct", 8700]
+    ]
+  },
+  "motor-permpoon3": {
+    documentDate: "เริ่มคุ้มครอง 31 ธันวาคม 2568–31 ธันวาคม 2569",
+    plans: [
+      ["silver-20", "ซิลเวอร์ · ทุนรถชน 20,000 · Deduct 2,000", 4700],
+      ["silver-30", "ซิลเวอร์ · ทุนรถชน 30,000 · Deduct 2,000", 4700],
+      ["silver-40", "ซิลเวอร์ · ทุนรถชน 40,000 · Deduct 2,000", 4700],
+      ["silver-50", "ซิลเวอร์ · ทุนรถชน 50,000 · Deduct 2,000", 4700],
+      ["silver-100", "ซิลเวอร์ · ทุนรถชน 100,000 · Deduct 2,000", 4700],
+      ["silver-150", "ซิลเวอร์ · ทุนรถชน 150,000 · Deduct 2,000", 5400],
+      ["silver-200", "ซิลเวอร์ · ทุนรถชน 200,000 · Deduct 2,000", 5600],
+      ["silver-250", "ซิลเวอร์ · ทุนรถชน 250,000 · Deduct 2,000", 5900],
+      ["silver-20-no-deduct", "ซิลเวอร์ · ทุนรถชน 20,000 · ไม่มี Deduct", 5700],
+      ["silver-30-no-deduct", "ซิลเวอร์ · ทุนรถชน 30,000 · ไม่มี Deduct", 5700],
+      ["silver-40-no-deduct", "ซิลเวอร์ · ทุนรถชน 40,000 · ไม่มี Deduct", 5700],
+      ["silver-50-no-deduct", "ซิลเวอร์ · ทุนรถชน 50,000 · ไม่มี Deduct", 5700],
+      ["silver-100-no-deduct", "ซิลเวอร์ · ทุนรถชน 100,000 · ไม่มี Deduct", 5700],
+      ["silver-150-no-deduct", "ซิลเวอร์ · ทุนรถชน 150,000 · ไม่มี Deduct", 6400],
+      ["silver-200-no-deduct", "ซิลเวอร์ · ทุนรถชน 200,000 · ไม่มี Deduct", 6700],
+      ["silver-250-no-deduct", "ซิลเวอร์ · ทุนรถชน 250,000 · ไม่มี Deduct", 7000]
+    ]
+  }
+};
+
+const premiumCheckPlanIds = new Set([
+  "motor-1",
+  "motor-one",
+  "motor-extra",
+  ...Object.keys(fixedPremiumCatalog)
+]);
 
 const officialProductUrls = {
   motor: "https://www.mittare.com/motor-insurance/",
@@ -427,6 +500,12 @@ document.querySelectorAll("[data-premium-category]").forEach((button) => {
 
 premiumCalculator?.addEventListener("input", () => setPremiumProgress(2));
 
+premiumCalculator?.addEventListener("click", (event) => {
+  const brochureButton = event.target.closest("[data-plan-document]");
+  if (!brochureButton) return;
+  openPlanDocument(brochureButton.dataset.planDocument);
+});
+
 premiumCalculator?.addEventListener("submit", (event) => {
   event.preventDefault();
   const formData = new FormData(premiumCalculator);
@@ -435,6 +514,8 @@ premiumCalculator?.addEventListener("submit", (event) => {
 
   const result = isOfficialRatePlan(plan.id)
     ? calculateCompulsoryPremium(formData.get("compulsoryVehicleClass"))
+    : fixedPremiumCatalog[plan.id]
+      ? calculateFixedPremium(plan, formData)
     : buildQuoteRequest(plan, formData);
 
   renderPremiumSummary(plan, result);
@@ -550,12 +631,18 @@ function renderPremiumFields() {
   if (!plan || !container || !mode) return;
 
   const officialRate = isOfficialRatePlan(plan.id);
-  mode.classList.toggle("is-quote", !officialRate);
+  const fixedCatalog = fixedPremiumCatalog[plan.id];
+  mode.classList.toggle("is-quote", !officialRate && !fixedCatalog);
+  mode.classList.toggle("is-fixed", Boolean(fixedCatalog));
   mode.textContent = officialRate
     ? "อัตราสาธารณะ: ระบบคำนวณเบี้ยสุทธิ + อากรแสตมป์ + VAT 7% ให้ทันที"
-    : "แผนประมาณการ: ระบบแสดงช่วงราคาโดยประมาณเพื่อวางแผนงบเบื้องต้นทันที";
+    : fixedCatalog
+      ? `ราคา Fix จากโบรชัวร์มิตรแท้ · ${fixedCatalog.documentDate}`
+      : "แผนตรวจสอบราคา: ระบบจะสรุปข้อมูลส่งให้ทีมตรวจเบี้ยจริง โดยไม่สร้างราคาประมาณขึ้นเอง";
   if (submitLabel) {
-    submitLabel.textContent = officialRate ? "คำนวณเบี้ยจริงและสร้างใบสรุป" : "ประมาณการและสร้างใบสรุป";
+    submitLabel.textContent = officialRate || fixedCatalog
+      ? "แสดงราคาและสร้างใบสรุป"
+      : "สร้างใบตรวจสอบราคา";
   }
 
   if (officialRate) {
@@ -569,6 +656,25 @@ function renderPremiumFields() {
         </select>
       </div>
       <p class="field-help">หากประเภทรถไม่ตรงกับรายการ ให้เลือก “รถประเภทอื่น” เพื่อจัดทำใบตรวจอัตรากับทีมงาน</p>
+    `;
+    return;
+  }
+
+  if (fixedCatalog) {
+    container.innerHTML = `
+      <div class="form-row">
+        <label for="fixed-premium-option">เลือกทุนและแผนจากโบรชัวร์</label>
+        <select id="fixed-premium-option" name="fixedPremiumOption" required>
+          ${fixedCatalog.plans.map(([value, label, price]) =>
+            `<option value="${escapeAttribute(value)}">${escapeAttribute(label)} — ${formatCurrency(price)}</option>`
+          ).join("")}
+        </select>
+      </div>
+      <div class="brochure-inline-note">
+        <strong>ราคาเดียวกับเอกสารแผน</strong>
+        <span>ระบบจะแสดงราคาที่ระบุไว้ในโบรชัวร์โดยตรง และเปิดเอกสารฉบับเต็มให้ตรวจเงื่อนไขได้</span>
+        <button type="button" data-plan-document="${escapeAttribute(plan.id)}">เปิดโบรชัวร์แผนนี้ →</button>
+      </div>
     `;
     return;
   }
@@ -687,35 +793,13 @@ function buildQuoteRequest(plan, formData) {
     details.push([getFieldLabel(key), formatFieldValue(key, value)]);
   }
 
-  const verifiedNotes = [];
-  let adjustment = 0;
-  if (plan.id === "motor-permpoon") {
-    const discounts = { "0": 0, "1": 500, "2": 900, "3": 1200 };
-    const discount = discounts[formData.get("noClaimYears")] || 0;
-    if (discount) {
-      adjustment -= discount;
-      verifiedNotes.push(`ส่วนลดประวัติไม่มีเคลมที่เผยแพร่: ${formatCurrency(discount)}`);
-    }
-  }
-  if (["motor-extra", "motor-eco"].includes(plan.id) && formData.get("hasWrap") === "yes") {
-    adjustment += 2000;
-    verifiedNotes.push("ค่าเพิ่มสำหรับ Wrap / Sticker รอบคันที่หน้าแผนระบุ: 2,000 บาท/คัน");
-  }
-
-  const estimate = calculateEstimatedPremium(plan, formData);
-  const minimum = roundToHundred(Math.max(500, estimate.minimum + adjustment));
-  const maximum = roundToHundred(Math.max(minimum + 100, estimate.maximum + adjustment));
-  const priceRange = `${formatCurrency(minimum)} – ${formatCurrency(maximum)}`;
-
   return {
-    status: "ประมาณการเบื้องต้น",
-    priceLabel: "ช่วงเบี้ยโดยประมาณ",
-    price: priceRange,
-    caption: verifiedNotes.length
-      ? `${verifiedNotes.join(" · ")} · ช่วงราคาเป็นการประเมินเพื่อวางแผนงบเท่านั้น`
-      : "ช่วงราคาเป็นการประเมินเพื่อวางแผนงบเท่านั้น ไม่ใช่ใบเสนอราคา",
-    details: [...details, ["ช่วงเบี้ยโดยประมาณ", priceRange]],
-    source: `${sourceLink(officialRateSources.products)}<br>สูตรประมาณการเป็นแบบจำลองของเว็บไซต์ Demo ไม่ใช่อัตราที่บริษัทประกาศ${verifiedNotes.length ? `<br>${verifiedNotes.join("<br>")}` : ""}`
+    status: "รอทีมตรวจสอบราคา",
+    priceLabel: "ผลการตรวจสอบ",
+    price: "ให้ทีมตรวจเบี้ยจริง",
+    caption: "แผนนี้ยังไม่มีราคา Fix ที่ตรวจยืนยันจากโบรชัวร์ในระบบ จึงไม่แสดงตัวเลขประมาณการ",
+    details: [...details, ["ขั้นตอนถัดไป", "ทีมงานตรวจเงื่อนไขและยืนยันเบี้ยจริง"]],
+    source: `${sourceLink(officialRateSources.products)}<br><a href="${officialDigitalContentUrl}" target="_blank" rel="noopener">ดู Digital Content ทางการของมิตรแท้ ↗</a>`
   };
 }
 
@@ -983,12 +1067,12 @@ function renderInsurancePlans() {
       <h3>${plan.title}</h3>
       <p>${plan.lead}</p>
       <div class="plan-card__premium">
-        <span>แนวทางเบี้ยประกัน</span>
-        <strong>${plan.premiumLabel}</strong>
+        <span>${fixedPremiumCatalog[plan.id] ? "ราคาในโบรชัวร์" : "แนวทางเบี้ยประกัน"}</span>
+        <strong>${fixedPremiumCatalog[plan.id] ? "มีราคา Fix ให้เลือก" : plan.premiumLabel}</strong>
       </div>
       ${getInsuranceMedia(plan.id)
         ? `<button class="product-detail-trigger" type="button" data-plan-document="${plan.id}">
-            เปิดเอกสารผลิตภัณฑ์ <span aria-hidden="true">→</span>
+            เปิดโบรชัวร์${fixedPremiumCatalog[plan.id] ? "และตารางราคา" : ""} <span aria-hidden="true">→</span>
           </button>`
         : `<button class="product-detail-trigger" type="button" data-product="${plan.id}">
             ดูข้อมูลฉบับละเอียด <span aria-hidden="true">→</span>
@@ -1020,6 +1104,28 @@ function initializeInsurancePage() {
   if (requestedPlanId && insurancePlans.some((plan) => plan.id === requestedPlanId && plan.category === category)) {
     window.setTimeout(() => openProductDetail(requestedPlanId), 0);
   }
+}
+
+function calculateFixedPremium(plan, formData) {
+  const catalog = fixedPremiumCatalog[plan.id];
+  const selectedValue = formData.get("fixedPremiumOption");
+  const selectedPlan = catalog?.plans.find(([value]) => value === selectedValue);
+  if (!catalog || !selectedPlan) {
+    return buildQuoteRequest(plan, formData);
+  }
+
+  const [, label, price] = selectedPlan;
+  return {
+    status: "ราคาตามโบรชัวร์",
+    priceLabel: "เบี้ยรวมภาษีอากร",
+    price: formatCurrency(price),
+    caption: `${catalog.documentDate} · ต้องเป็นรถและการใช้งานที่เข้าเงื่อนไขรับประกันของแผน`,
+    details: [
+      ["ตัวเลือกจากโบรชัวร์", label],
+      ["เบี้ยรวมภาษีอากร", formatCurrency(price)]
+    ],
+    source: `แหล่งข้อมูล: โบรชัวร์ผลิตภัณฑ์ที่แสดงในเว็บไซต์นี้ (${catalog.documentDate})<br><a href="${officialDigitalContentUrl}" target="_blank" rel="noopener">ตรวจสอบ Digital Content ทางการของมิตรแท้ ↗</a>`
+  };
 }
 
 function openProductDetail(productId) {
@@ -1056,9 +1162,11 @@ function openProductDetail(productId) {
   const primaryButton = document.querySelector("#product-dialog-primary");
   const canCheckPremium = product.category !== "motor" || premiumCheckPlanIds.has(product.id);
   primaryButton.hidden = !canCheckPremium;
-  primaryButton.textContent = product.category === "motor"
-    ? "เช็กเบี้ยแผนประเภท 1 นี้"
-    : "ประมาณการแผนนี้";
+  primaryButton.textContent = fixedPremiumCatalog[product.id]
+    ? "เลือกราคา Fix จากโบรชัวร์"
+    : product.category === "motor"
+      ? "ส่งข้อมูลตรวจสอบเบี้ย"
+      : "ตรวจสอบราคาแผนนี้";
   primaryButton.dataset.planId = product.id;
   primaryButton.href = premiumCalculator
     ? "#premium-check"

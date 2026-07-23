@@ -324,6 +324,17 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
 .plan-card__premium { display: grid; padding: 12px 14px; margin-top: auto; background: var(--white); border-radius: 12px; }
 .plan-card__premium span { color: var(--muted); font-size: .65rem; }
 .plan-card__premium strong { color: var(--green-900); font-size: .8rem; }
+.brochure-hub { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 24px; margin: 22px 0; color: var(--white); background: var(--green-900); border-radius: 20px; }
+.brochure-hub div { display: grid; gap: 4px; }
+.brochure-hub span { color: var(--yellow); font-size: .65rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.brochure-hub strong { font-size: clamp(.95rem, 2vw, 1.2rem); }
+.brochure-hub p { max-width: 720px; margin: 0; color: rgba(255,255,255,.72); font-size: .75rem; line-height: 1.65; }
+.brochure-hub a { flex: 0 0 auto; padding: 12px 16px; color: var(--green-900); background: var(--yellow); border-radius: 999px; font-size: .72rem; font-weight: 900; text-decoration: none; }
+.brochure-hub a:focus-visible { outline: 3px solid var(--white); outline-offset: 4px; }
+@media (max-width: 680px) {
+  .brochure-hub { align-items: stretch; flex-direction: column; padding: 18px; }
+  .brochure-hub a { align-self: flex-start; }
+}
 .plan-card .product-detail-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 17px 0 0; color: var(--green-900); background: none; border: 0; cursor: pointer; font-size: .78rem; font-weight: 700; }
 .plan-empty { display: grid; min-height: 220px; color: var(--muted); place-content: center; text-align: center; }
 .plan-empty[hidden] { display: none; }
@@ -1779,6 +1790,12 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
 .text-button { padding: 4px; color: var(--green-800); background: none; border: 0; cursor: pointer; font-size: .8rem; text-decoration: underline; }
 .calculator-mode { padding: 14px 16px; margin: 3px 0 20px; color: var(--green-900); background: var(--green-100); border-radius: 12px; font-size: .78rem; }
 .calculator-mode.is-quote { color: #76540a; background: #fff4c7; }
+.calculator-mode.is-fixed { color: #07513f; background: #dcf7ea; border: 1px solid #a9e3ca; }
+.brochure-inline-note { display: grid; gap: 6px; padding: 16px; margin-top: 14px; color: var(--green-900); background: #f0fbf6; border: 1px solid #c7eadb; border-radius: 14px; }
+.brochure-inline-note strong { font-size: .86rem; }
+.brochure-inline-note span { color: var(--muted); font-size: .75rem; line-height: 1.65; }
+.brochure-inline-note button { justify-self: start; padding: 0; color: var(--green-800); background: none; border: 0; font: inherit; font-weight: 800; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.brochure-inline-note button:focus-visible { outline: 3px solid var(--yellow); outline-offset: 4px; }
 .field-help { margin: -9px 0 17px; color: var(--muted); font-size: .68rem; }
 
 .leaders { overflow: hidden; background: var(--cream); }
