@@ -87,6 +87,16 @@ function initializeExamNavigation() {
     navigation.classList.remove("is-open");
     navigation.querySelectorAll("details[open]").forEach((item) => item.removeAttribute("open"));
   };
+  const menuGroups = [...navigation.querySelectorAll(".exam-mega-nav")];
+
+  menuGroups.forEach((menuGroup) => {
+    menuGroup.addEventListener("toggle", () => {
+      if (!menuGroup.open) return;
+      menuGroups.forEach((otherGroup) => {
+        if (otherGroup !== menuGroup) otherGroup.removeAttribute("open");
+      });
+    });
+  });
 
   menuToggle.addEventListener("click", () => {
     const willOpen = menuToggle.getAttribute("aria-expanded") !== "true";
@@ -95,6 +105,14 @@ function initializeExamNavigation() {
   });
   navigation.addEventListener("click", (event) => {
     if (event.target.closest("a") && window.matchMedia("(max-width: 1100px)").matches) closeNavigation();
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".exam-site-header")) {
+      menuGroups.forEach((menuGroup) => menuGroup.removeAttribute("open"));
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeNavigation();
   });
   window.addEventListener("resize", () => {
     if (!window.matchMedia("(max-width: 1100px)").matches) closeNavigation();
