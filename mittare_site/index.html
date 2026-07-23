@@ -653,32 +653,50 @@
   <dialog class="premium-dialog" id="premium-dialog" aria-labelledby="summary-title">
     <div class="premium-summary" id="premium-summary">
       <header class="summary-header">
-        <div>
-          <p>MITTARE SATTAHIP</p>
-          <h2 id="summary-title">ใบสรุปงบประกันเบื้องต้น</h2>
+        <div class="summary-header__title">
+          <span class="summary-header__icon" aria-hidden="true">✓</span>
+          <div>
+            <p>YOUR COVERAGE RESULT</p>
+            <h2 id="summary-title">ผลลัพธ์แผนที่คุณเลือก</h2>
+          </div>
         </div>
         <button class="dialog-close summary-close" type="button" aria-label="ปิดหน้าต่าง">×</button>
       </header>
       <div class="summary-meta">
-        <span>เลขที่เอกสาร <strong id="summary-number"></strong></span>
-        <span>วันที่ <strong id="summary-date"></strong></span>
+        <span>รหัสผลลัพธ์ <strong id="summary-number"></strong></span>
+        <span>อัปเดต <strong id="summary-date"></strong></span>
       </div>
-      <div class="summary-details" id="summary-details"></div>
-      <section class="summary-coverage" id="summary-coverage" hidden></section>
       <div class="summary-price">
+        <span class="summary-status-badge" id="summary-status-badge"></span>
         <span id="summary-price-label">เบี้ยประกันรวม</span>
         <strong id="summary-price"></strong>
         <small id="summary-price-caption"></small>
       </div>
+      <div class="summary-insight" id="summary-insight"></div>
+      <section class="summary-section">
+        <div class="summary-section__heading"><span>ข้อมูลที่เลือก</span><small>ตรวจทานก่อนดำเนินการ</small></div>
+        <div class="summary-details" id="summary-details"></div>
+      </section>
+      <section class="summary-coverage" id="summary-coverage" hidden></section>
       <div class="summary-source" id="summary-source"></div>
-      <div class="summary-notes">
-        <h3>หมายเหตุสำคัญ</h3>
-        <p>เอกสารนี้ไม่ใช่กรมธรรม์หรือใบเสนอราคา เบี้ยและความคุ้มครองจริงขึ้นกับข้อมูลรถ ผู้ขับขี่ ทุนประกัน เงื่อนไข และการพิจารณารับประกันภัยของบริษัท</p>
+      <div class="summary-next-steps">
+        <span>ขั้นตอนถัดไป</span>
+        <ol>
+          <li><b>1</b><p><strong>ตรวจรายละเอียด</strong><small>เช็กข้อมูลรถและความคุ้มครอง</small></p></li>
+          <li><b>2</b><p><strong>คุยกับทีม</strong><small>ยืนยันเงื่อนไขรับประกัน</small></p></li>
+          <li><b>3</b><p><strong>ตัดสินใจเมื่อพร้อม</strong><small>ยังไม่มีการผูกมัดหรือชำระเงิน</small></p></li>
+        </ol>
       </div>
+      <div class="summary-actions">
+        <button class="button button--outline" id="summary-edit" type="button">← กลับไปแก้ตัวเลือก</button>
+        <button class="button button--outline" id="summary-brochure" type="button">เปิดโบรชัวร์</button>
+        <a class="button button--primary" href="https://line.me/R/ti/p/@mittaresattahipdemo" target="_blank" rel="noopener">คุยกับทีมผ่าน LINE</a>
+      </div>
+      <p class="summary-disclaimer">ผลลัพธ์นี้ช่วยเปรียบเทียบเบื้องต้น ไม่ใช่กรมธรรม์หรือข้อเสนอขาย ความคุ้มครองจริงขึ้นกับเอกสารแผน ข้อมูลรถ และการพิจารณารับประกันของบริษัท</p>
       <footer class="summary-footer">
         <div>
-          <strong>Mittare Sattahip</strong>
-          <span>สอบถามทีม Demo 081-175-9296 · LINE @mittaresattahipdemo · แจ้งอุบัติเหตุ 1741</span>
+          <strong>ต้องการเก็บผลลัพธ์นี้ไว้?</strong>
+          <span>ดาวน์โหลดเป็น PDF เพื่อเปรียบเทียบหรือส่งให้ทีมตรวจสอบต่อ</span>
         </div>
         <button class="button button--dark" id="export-pdf" type="button">
           Export เป็น PDF

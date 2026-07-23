@@ -640,6 +640,19 @@ document.querySelector("#export-pdf")?.addEventListener("click", () => {
   window.print();
 });
 
+document.querySelector("#summary-edit")?.addEventListener("click", () => {
+  premiumDialog?.close();
+  document.querySelector("#premium-check")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  window.setTimeout(() => document.querySelector("#premium-plan")?.focus(), 450);
+});
+
+document.querySelector("#summary-brochure")?.addEventListener("click", (event) => {
+  const planId = event.currentTarget.dataset.planDocument;
+  if (!planId) return;
+  premiumDialog?.close();
+  openPlanDocument(planId);
+});
+
 quoteForm?.addEventListener("submit", (event) => {
   event.preventDefault();
 
@@ -661,14 +674,30 @@ function renderPremiumSummary(plan, result) {
   document.querySelector("#summary-details").innerHTML = [
     ["หมวดประกัน", getCategoryLabel(plan.category)],
     ["แผน / ประเภท", plan.title],
-    ...result.details,
-    ["สถานะเอกสาร", result.status]
+    ...result.details
   ].map(([label, value]) => `<div><span>${escapeAttribute(label)}</span><strong>${escapeAttribute(value)}</strong></div>`).join("");
 
+  const resultType = result.status === "ราคาตามโบรชัวร์"
+    ? "fixed"
+    : result.status === "คำนวณจากอัตราสาธารณะ"
+      ? "official"
+      : "review";
+  const summary = document.querySelector("#premium-summary");
+  summary.dataset.resultType = resultType;
+  document.querySelector("#summary-status-badge").textContent = result.status;
   document.querySelector("#summary-price-label").textContent = result.priceLabel;
   document.querySelector("#summary-price").textContent = result.price;
   document.querySelector("#summary-price-caption").textContent = result.caption;
+  document.querySelector("#summary-insight").innerHTML = {
+    fixed: "<strong>ราคา Fix ที่ตรวจสอบได้</strong><span>ตัวเลขนี้ตรงกับตัวเลือกในโบรชัวร์ที่ผูกไว้กับระบบ คุณสามารถเปิดเอกสารเพื่อตรวจเงื่อนไขฉบับเต็มได้ทันที</span>",
+    official: "<strong>คำนวณจากอัตรา พ.ร.บ.</strong><span>ระบบแยกเบี้ยสุทธิ อากรแสตมป์ และ VAT ตามประเภทรถที่เลือก เพื่อให้เห็นที่มาของยอดรวมชัดเจน</span>",
+    review: "<strong>ต้องให้ทีมยืนยันก่อนแสดงราคา</strong><span>ระบบไม่สร้างตัวเลขประมาณขึ้นเอง ข้อมูลที่เลือกจะใช้สำหรับตรวจเงื่อนไขและจัดทำราคาจริงต่อไป</span>"
+  }[resultType];
   document.querySelector("#summary-source").innerHTML = result.source;
+  const brochureButton = document.querySelector("#summary-brochure");
+  const media = getInsuranceMedia(plan.id);
+  brochureButton.hidden = !media;
+  brochureButton.dataset.planDocument = media ? plan.id : "";
   const coverageSection = document.querySelector("#summary-coverage");
   if (coverageSection) {
     coverageSection.hidden = !result.coverageRows?.length;
