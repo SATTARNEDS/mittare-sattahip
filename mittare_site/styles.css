@@ -1805,6 +1805,10 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
 .calculator-mode { padding: 14px 16px; margin: 3px 0 20px; color: var(--green-900); background: var(--green-100); border-radius: 12px; font-size: .78rem; }
 .calculator-mode.is-quote { color: #76540a; background: #fff4c7; }
 .calculator-mode.is-fixed { color: #07513f; background: #dcf7ea; border: 1px solid #a9e3ca; }
+.vehicle-identity { padding: 18px; margin: 0 0 24px; border: 1px solid #cfe0da; border-radius: 16px; background: #fbfdfc; }
+.vehicle-identity legend { padding: 0 8px; color: var(--green-900); font-size: .78rem; font-weight: 900; }
+.vehicle-identity .form-grid { margin: 0; }
+.vehicle-identity .field-help { margin: 12px 0 0; line-height: 1.65; }
 .brochure-inline-note { display: grid; gap: 6px; padding: 16px; margin-top: 14px; color: var(--green-900); background: #f0fbf6; border: 1px solid #c7eadb; border-radius: 14px; }
 .brochure-inline-note strong { font-size: .86rem; }
 .brochure-inline-note span { color: var(--muted); font-size: .75rem; line-height: 1.65; }

@@ -247,31 +247,72 @@ const compulsoryVehicleRates = {
   other: { label: "รถประเภทอื่น — ให้ทีมตรวจอัตราตามทะเบียน", net: null }
 };
 
+const vehicleCatalog = {
+  sedan: {
+    label: "รถเก๋ง / รถยนต์นั่งส่วนบุคคล รหัส 110",
+    brands: {
+      TOYOTA: ["Yaris Ativ", "Vios", "Corolla Altis", "Camry"],
+      HONDA: ["City", "Civic", "Accord"],
+      MITSUBISHI: ["Attrage", "Mirage"],
+      MAZDA: ["Mazda 2", "Mazda 3"],
+      FORD: ["รุ่นรถเก๋งตามบัญชีรับประกัน — ให้ทีมตรวจสอบ"],
+      ISUZU: ["รุ่นรถเก๋งตามบัญชีรับประกัน — ให้ทีมตรวจสอบ"],
+      NISSAN: ["Almera", "Sylphy"],
+      MG: ["MG 3", "MG 5"],
+      BYD: ["Dolphin", "Seal"],
+      OTHER: ["รุ่นอื่น — ให้ทีมตรวจสอบ"]
+    }
+  },
+  pickupPersonal: {
+    label: "รถกระบะส่วนบุคคล / กระบะ 4 ประตู",
+    brands: {
+      TOYOTA: ["Hilux Revo Double Cab"],
+      ISUZU: ["D-Max Cab 4"],
+      FORD: ["Ranger Double Cab"],
+      MITSUBISHI: ["Triton Double Cab"],
+      NISSAN: ["Navara Double Cab"],
+      MAZDA: ["BT-50 Double Cab"],
+      OTHER: ["รุ่นอื่น — ให้ทีมตรวจสอบ"]
+    }
+  },
+  pickupCommercial: {
+    label: "รถกระบะบรรทุก ไม่เกิน 4 ตัน รหัส 320",
+    brands: {
+      TOYOTA: ["Hilux Revo Standard Cab", "Hilux Revo Smart Cab"],
+      ISUZU: ["D-Max Spark", "D-Max Spacecab"],
+      FORD: ["Ranger Standard Cab", "Ranger Open Cab"],
+      MITSUBISHI: ["Triton Mega Cab", "Triton Single Cab"],
+      NISSAN: ["Navara Single Cab", "Navara King Cab"],
+      MAZDA: ["BT-50 Freestyle Cab"],
+      OTHER: ["รุ่นอื่น — ให้ทีมตรวจสอบ"]
+    }
+  },
+  suvPpv: {
+    label: "รถ SUV / PPV ไม่เกิน 7 ที่นั่ง",
+    brands: {
+      TOYOTA: ["Fortuner", "Corolla Cross"],
+      HONDA: ["HR-V", "CR-V"],
+      ISUZU: ["MU-X"],
+      FORD: ["Everest"],
+      MITSUBISHI: ["Pajero Sport", "Xpander Cross"],
+      MAZDA: ["CX-3", "CX-5", "CX-8"],
+      MG: ["ZS", "HS"],
+      BYD: ["Atto 3"],
+      OTHER: ["รุ่นอื่น — ให้ทีมตรวจสอบ"]
+    }
+  },
+  van: {
+    label: "รถตู้ส่วนบุคคล ไม่เกิน 7 ที่นั่ง",
+    brands: {
+      TOYOTA: ["Commuter", "Majesty", "Alphard"],
+      HYUNDAI: ["H-1", "Staria"],
+      OTHER: ["รุ่นอื่น — ให้ทีมตรวจสอบ"]
+    }
+  }
+};
+
 const categoryQuoteFields = {
   motor: [
-    ["vehicleMakeModel", "ยี่ห้อ / รุ่นรถ", "select", [
-      ["toyota-yaris-ativ", "Toyota Yaris Ativ"],
-      ["toyota-vios", "Toyota Vios"],
-      ["toyota-corolla-altis", "Toyota Corolla Altis"],
-      ["toyota-fortuner", "Toyota Fortuner"],
-      ["toyota-hilux-revo", "Toyota Hilux Revo"],
-      ["honda-city", "Honda City"],
-      ["honda-civic", "Honda Civic"],
-      ["honda-hrv", "Honda HR-V"],
-      ["honda-crv", "Honda CR-V"],
-      ["isuzu-dmax", "Isuzu D-Max"],
-      ["isuzu-mux", "Isuzu MU-X"],
-      ["ford-ranger", "Ford Ranger"],
-      ["ford-everest", "Ford Everest"],
-      ["mitsubishi-triton", "Mitsubishi Triton"],
-      ["mitsubishi-pajero-sport", "Mitsubishi Pajero Sport"],
-      ["mazda-2", "Mazda 2"],
-      ["mazda-3", "Mazda 3"],
-      ["nissan-almera", "Nissan Almera"],
-      ["byd-atto-3", "BYD Atto 3"],
-      ["other", "ยี่ห้อหรือรุ่นอื่น — ให้ทีมตรวจสอบ"]
-    ]],
-    ["vehicleYear", "ปีจดทะเบียน", "year-select", ""],
     ["vehicleValue", "มูลค่ารถโดยประมาณ (บาท)", "number", "600000"],
     ["vehicleUsage", "การใช้งาน", "select", [["personal", "ส่วนบุคคล"], ["business", "ใช้ในกิจการ"], ["commercial", "รับจ้าง / เชิงพาณิชย์"]]],
     ["repairType", "ประเภทการซ่อม", "select", [["garage", "ซ่อมอู่"], ["dealer", "ซ่อมห้าง / ศูนย์"]]],
@@ -691,6 +732,7 @@ function renderPremiumFields() {
 
   if (fixedCatalog) {
     container.innerHTML = `
+      ${renderVehicleIdentityFields(plan.id)}
       ${renderFixedPackageSelector(plan, fixedCatalog)}
       <div class="brochure-inline-note">
         <strong>ราคาเดียวกับเอกสารแผน</strong>
@@ -698,14 +740,16 @@ function renderPremiumFields() {
         <button type="button" data-plan-document="${escapeAttribute(plan.id)}">เปิดโบรชัวร์แผนนี้ →</button>
       </div>
     `;
+    initializeVehicleSelectors(container);
     initializeFixedPackageSelector(container.querySelector(".fixed-package-selector"));
     return;
   }
 
   const fields = categoryQuoteFields[category] || [];
   container.innerHTML = `
+    ${category === "motor" ? renderVehicleIdentityFields(plan.id) : ""}
     <div class="form-grid">
-      ${fields.map(renderCalculatorField).join("")}
+      ${fields.map((field) => renderCalculatorField(field, plan.id)).join("")}
     </div>
     ${renderVerifiedPlanOptions(plan.id)}
     <div class="form-row">
@@ -717,9 +761,91 @@ function renderPremiumFields() {
       </select>
     </div>
   `;
+  if (category === "motor") initializeVehicleSelectors(container);
 }
 
-function renderCalculatorField([name, label, type, config]) {
+function getEligibleVehicleTypes(planId) {
+  if (planId === "motor-one") return ["sedan", "pickupPersonal", "suvPpv"];
+  if (["motor-permpoon", "motor-permpoon3"].includes(planId)) return ["sedan", "pickupCommercial"];
+  return Object.keys(vehicleCatalog);
+}
+
+function getEligibleVehicleBrands(planId, vehicleType) {
+  const availableBrands = Object.keys(vehicleCatalog[vehicleType]?.brands || {});
+  if (planId !== "motor-one") return availableBrands;
+  const brochureBrands = ["MITSUBISHI", "MAZDA", "FORD", "ISUZU", "TOYOTA", "NISSAN", "MG"];
+  return brochureBrands.filter((brand) => availableBrands.includes(brand));
+}
+
+function renderVehicleIdentityFields(planId) {
+  const eligibleTypes = getEligibleVehicleTypes(planId);
+  const firstType = vehicleCatalog[eligibleTypes[0]];
+  const eligibleBrands = getEligibleVehicleBrands(planId, eligibleTypes[0]);
+  const firstBrand = eligibleBrands[0];
+  const currentYear = new Date().getFullYear();
+  const years = planId === "motor-one"
+    ? Array.from({ length: 8 }, (_, index) => currentYear - 8 - index)
+    : Array.from({ length: 26 }, (_, index) => currentYear - index);
+  return `
+    <fieldset class="vehicle-identity" data-plan-id="${escapeAttribute(planId)}">
+      <legend>ข้อมูลรถที่ใช้ตรวจสอบเงื่อนไข</legend>
+      <div class="form-grid">
+        <div class="form-row">
+          <label for="vehicle-body-type">ประเภทรถ</label>
+          <select id="vehicle-body-type" name="vehicleBodyType" required>
+            ${eligibleTypes.map((type) => `<option value="${type}">${escapeAttribute(vehicleCatalog[type].label)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="vehicle-brand">ยี่ห้อรถ</label>
+          <select id="vehicle-brand" name="vehicleBrand" required>
+            ${eligibleBrands.map((brand) => `<option value="${brand}">${brand === "OTHER" ? "ยี่ห้ออื่น" : brand}</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="vehicle-model">รุ่นรถ</label>
+          <select id="vehicle-model" name="vehicleModel" required>
+            ${firstType.brands[firstBrand].map((model) => `<option value="${escapeAttribute(model)}">${escapeAttribute(model)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="vehicle-year">ปีจดทะเบียน</label>
+          <select id="vehicle-year" name="vehicleYear" required>
+            ${years.map((year) => `<option value="${year}">${year + 543} (${year})</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <p class="field-help">ตัวเลือกช่วยคัดกรองเบื้องต้น การรับประกันจริงต้องตรวจรหัสรถ รุ่นย่อย อายุรถ และเงื่อนไขในเอกสารแผนอีกครั้ง</p>
+    </fieldset>
+  `;
+}
+
+function initializeVehicleSelectors(container) {
+  const typeSelect = container.querySelector('[name="vehicleBodyType"]');
+  const brandSelect = container.querySelector('[name="vehicleBrand"]');
+  const modelSelect = container.querySelector('[name="vehicleModel"]');
+  if (!typeSelect || !brandSelect || !modelSelect) return;
+  const planId = typeSelect.closest(".vehicle-identity")?.dataset.planId || "";
+
+  const populateModels = () => {
+    const models = vehicleCatalog[typeSelect.value]?.brands[brandSelect.value] || [];
+    modelSelect.innerHTML = models
+      .map((model) => `<option value="${escapeAttribute(model)}">${escapeAttribute(model)}</option>`)
+      .join("");
+  };
+  const populateBrands = () => {
+    const brands = getEligibleVehicleBrands(planId, typeSelect.value);
+    brandSelect.innerHTML = brands
+      .map((brand) => `<option value="${brand}">${brand === "OTHER" ? "ยี่ห้ออื่น" : brand}</option>`)
+      .join("");
+    populateModels();
+  };
+
+  typeSelect.addEventListener("change", populateBrands);
+  brandSelect.addEventListener("change", populateModels);
+}
+
+function renderCalculatorField([name, label, type, config], planId = "") {
   if (type === "year-select") {
     const currentYear = new Date().getFullYear();
     const years = Array.from({ length: 26 }, (_, index) => currentYear - index);
@@ -734,11 +860,14 @@ function renderCalculatorField([name, label, type, config]) {
   }
 
   if (type === "select") {
+    const selectOptions = planId === "motor-one" && name === "repairType"
+      ? config.filter(([value]) => value === "garage")
+      : config;
     return `
       <div class="form-row">
         <label for="${name}">${label}</label>
         <select id="${name}" name="${name}" required>
-          ${config.map(([value, text]) => `<option value="${value}">${text}</option>`).join("")}
+          ${selectOptions.map(([value, text]) => `<option value="${value}">${text}</option>`).join("")}
         </select>
       </div>
     `;
@@ -1286,12 +1415,16 @@ function calculateFixedPremium(plan, formData) {
   }
 
   const [, label, price] = selectedPlan;
+  const vehicleDetails = ["vehicleBodyType", "vehicleBrand", "vehicleModel", "vehicleYear"]
+    .filter((fieldName) => formData.get(fieldName))
+    .map((fieldName) => [getFieldLabel(fieldName), formatFieldValue(fieldName, formData.get(fieldName))]);
   return {
     status: "ราคาตามโบรชัวร์",
     priceLabel: "เบี้ยรวมภาษีอากร",
     price: formatCurrency(price),
     caption: `${catalog.documentDate} · ต้องเป็นรถและการใช้งานที่เข้าเงื่อนไขรับประกันของแผน`,
     details: [
+      ...vehicleDetails,
       ["ตัวเลือกจากโบรชัวร์", label],
       ["เบี้ยรวมภาษีอากร", formatCurrency(price)]
     ],
