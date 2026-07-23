@@ -221,7 +221,7 @@ let dynamicProductMedia = {};
 const officialRateSources = {
   compulsory: {
     label: "อัตราเบี้ยประกันภัยรถยนต์ภาคบังคับ (พ.ร.บ.) ที่มิตรแท้เผยแพร่",
-    url: "https://www.mittare.com/motor-insurance/",
+    url: "https://www.mittare.com/en/motor-insurance/",
     effective: "อัตราที่หน้าเว็บไซต์ระบุว่ามีวันเริ่มคุ้มครองตั้งแต่ 1 มีนาคม 2551"
   },
   products: {
@@ -306,6 +306,36 @@ const vehicleCatalog = {
     brands: {
       TOYOTA: ["Commuter", "Majesty", "Alphard"],
       HYUNDAI: ["H-1", "Staria"],
+      OTHER: ["รุ่นอื่น — ให้ทีมตรวจสอบ"]
+    }
+  },
+  motorcycle: {
+    label: "รถจักรยานยนต์",
+    brands: {
+      HONDA: ["Wave", "Click", "Scoopy", "PCX", "Forza"],
+      YAMAHA: ["Finn", "Fazzio", "Grand Filano", "NMAX", "XMAX"],
+      SUZUKI: ["Smash", "Burgman"],
+      KAWASAKI: ["Ninja", "Z Series"],
+      GPX: ["Drone", "Legend"],
+      OTHER: ["รุ่นอื่น — ให้ทีมตรวจสอบ"]
+    }
+  },
+  passengerVehicle: {
+    label: "รถโดยสาร / รถตู้ มากกว่า 7 ที่นั่ง",
+    brands: {
+      TOYOTA: ["Commuter"],
+      NISSAN: ["Urvan"],
+      HYUNDAI: ["H-1", "Staria"],
+      OTHER: ["รุ่นอื่น — ให้ทีมตรวจสอบ"]
+    }
+  },
+  heavyTruck: {
+    label: "รถบรรทุก",
+    brands: {
+      ISUZU: ["NLR", "NMR", "F-Series", "GIGA"],
+      HINO: ["300 Series", "500 Series", "700 Series"],
+      FUSO: ["Canter", "FJ", "FZ"],
+      UD: ["Croner", "Quester"],
       OTHER: ["รุ่นอื่น — ให้ทีมตรวจสอบ"]
     }
   }
@@ -576,7 +606,7 @@ premiumCalculator?.addEventListener("submit", (event) => {
   if (!plan) return;
 
   const result = isOfficialRatePlan(plan.id)
-    ? calculateCompulsoryPremium(formData.get("compulsoryVehicleClass"))
+    ? calculateCompulsoryPremium(formData.get("compulsoryVehicleClass"), formData)
     : fixedPremiumCatalog[plan.id]
       ? calculateFixedPremium(plan, formData)
     : buildQuoteRequest(plan, formData);
@@ -726,7 +756,9 @@ function renderPremiumFields() {
         </select>
       </div>
       <p class="field-help">หากประเภทรถไม่ตรงกับรายการ ให้เลือก “รถประเภทอื่น” เพื่อจัดทำใบตรวจอัตรากับทีมงาน</p>
+      ${renderVehicleIdentityFields(plan.id, getCtpVehicleTypes("motorcycle75"))}
     `;
+    initializeCompulsoryVehicleSelectors(container);
     return;
   }
 
@@ -777,8 +809,16 @@ function getEligibleVehicleBrands(planId, vehicleType) {
   return brochureBrands.filter((brand) => availableBrands.includes(brand));
 }
 
-function renderVehicleIdentityFields(planId) {
-  const eligibleTypes = getEligibleVehicleTypes(planId);
+function getCtpVehicleTypes(vehicleClass) {
+  if (vehicleClass.startsWith("motorcycle")) return ["motorcycle"];
+  if (vehicleClass.startsWith("privatePassenger")) return ["passengerVehicle"];
+  if (vehicleClass.startsWith("privateTruck")) return ["pickupCommercial", "heavyTruck"];
+  if (vehicleClass === "privateCar7") return ["sedan", "pickupPersonal", "suvPpv", "van"];
+  return Object.keys(vehicleCatalog);
+}
+
+function renderVehicleIdentityFields(planId, eligibleTypeOverride = null) {
+  const eligibleTypes = eligibleTypeOverride || getEligibleVehicleTypes(planId);
   const firstType = vehicleCatalog[eligibleTypes[0]];
   const eligibleBrands = getEligibleVehicleBrands(planId, eligibleTypes[0]);
   const firstBrand = eligibleBrands[0];
@@ -843,6 +883,20 @@ function initializeVehicleSelectors(container) {
 
   typeSelect.addEventListener("change", populateBrands);
   brandSelect.addEventListener("change", populateModels);
+}
+
+function initializeCompulsoryVehicleSelectors(container) {
+  const classSelect = container.querySelector('[name="compulsoryVehicleClass"]');
+  const typeSelect = container.querySelector('[name="vehicleBodyType"]');
+  if (!classSelect || !typeSelect) return;
+  initializeVehicleSelectors(container);
+  classSelect.addEventListener("change", () => {
+    const vehicleTypes = getCtpVehicleTypes(classSelect.value);
+    typeSelect.innerHTML = vehicleTypes
+      .map((type) => `<option value="${type}">${escapeAttribute(vehicleCatalog[type].label)}</option>`)
+      .join("");
+    typeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  });
 }
 
 function renderCalculatorField([name, label, type, config], planId = "") {
@@ -916,15 +970,18 @@ function isOfficialRatePlan(planId) {
   return ["motor-compulsory", "fuel-ctp"].includes(planId);
 }
 
-function calculateCompulsoryPremium(vehicleClass) {
+function calculateCompulsoryPremium(vehicleClass, formData) {
   const rate = compulsoryVehicleRates[vehicleClass];
+  const vehicleDetails = ["vehicleBodyType", "vehicleBrand", "vehicleModel", "vehicleYear"]
+    .filter((fieldName) => formData?.get(fieldName))
+    .map((fieldName) => [getFieldLabel(fieldName), formatFieldValue(fieldName, formData.get(fieldName))]);
   if (!rate || rate.net === null) {
     return {
       status: "รอตรวจอัตราตามทะเบียน",
       priceLabel: "ผลการตรวจสอบ",
       price: "กรุณาให้ทีมตรวจอัตรา",
       caption: "รถประเภทอื่นอาจมีอัตราแตกต่างตามรหัสและลักษณะการใช้รถ",
-      details: [["ประเภทรถ", rate?.label || "ไม่ระบุ"]],
+      details: [["ประเภทรถตามทะเบียน", rate?.label || "ไม่ระบุ"], ...vehicleDetails],
       source: sourceLink(officialRateSources.compulsory)
     };
   }
@@ -941,6 +998,7 @@ function calculateCompulsoryPremium(vehicleClass) {
     caption: `เบี้ยสุทธิ ${formatCurrency(rate.net)} · อากร ${formatCurrency(stampDuty)} · VAT ${formatCurrency(vat)}`,
     details: [
       ["ประเภทรถ", rate.label],
+      ...vehicleDetails,
       ["เบี้ยสุทธิ", formatCurrency(rate.net)],
       ["อากรแสตมป์", formatCurrency(stampDuty)],
       ["ภาษีมูลค่าเพิ่ม 7%", formatCurrency(vat)]
