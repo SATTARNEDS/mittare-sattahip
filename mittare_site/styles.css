@@ -1866,10 +1866,9 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
 .vehicle-identity .field-help { grid-row: auto; }
 .agent-invitation { color: var(--ink); background: linear-gradient(135deg, #eff8f4 0%, #fffdf2 100%); }
 .agent-invitation__shell { display: grid; grid-template-columns: minmax(300px, .78fr) minmax(0, 1.22fr); gap: clamp(38px, 7vw, 90px); align-items: center; }
-.agent-invitation__visual { position: relative; min-height: 590px; overflow: hidden; background: var(--green-900); border-radius: 30px; box-shadow: var(--shadow); }
-.agent-invitation__visual::after { position: absolute; inset: 0; content: ""; background: linear-gradient(180deg, transparent 52%, rgba(3,49,45,.88) 100%); }
-.agent-invitation__visual img { width: 100%; height: 100%; min-height: 590px; object-fit: cover; }
-.agent-invitation__visual > div { position: absolute; z-index: 1; right: 26px; bottom: 26px; left: 26px; display: grid; color: var(--white); }
+.agent-invitation__visual { position: relative; display: grid; overflow: hidden; background: var(--green-950); border: 1px solid rgba(7,86,79,.12); border-radius: 30px; box-shadow: var(--shadow); }
+.agent-invitation__visual img { position: relative; z-index: 1; display: block; width: 100%; height: auto; object-fit: contain; }
+.agent-invitation__visual > div { position: relative; z-index: 2; display: grid; min-height: 104px; padding: 18px 26px; color: var(--white); background: linear-gradient(135deg, var(--green-950), var(--green-800)); align-content: center; }
 .agent-invitation__visual > div span { color: var(--yellow); font-size: clamp(2.5rem, 5vw, 4.2rem); font-weight: 800; line-height: 1; }
 .agent-invitation__visual > div small { max-width: 260px; margin-top: 8px; color: rgba(255,255,255,.75); line-height: 1.5; }
 .agent-invitation__content > h2 { max-width: 760px; margin: 12px 0 18px; }
@@ -2645,8 +2644,7 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
 
 @media (max-width: 1024px) {
   .agent-invitation__shell { grid-template-columns: 1fr; }
-  .agent-invitation__visual { min-height: 430px; }
-  .agent-invitation__visual img { min-height: 430px; }
+  .agent-invitation__visual { width: min(100%, 720px); margin-inline: auto; }
 }
 
 @media (max-width: 1100px) {
@@ -2674,8 +2672,6 @@ dialog::backdrop { background: rgba(2,30,28,.76); backdrop-filter: blur(7px); }
 @media (max-width: 600px) {
   .premium-category-cards { display: grid; padding-bottom: 0; grid-template-columns: 1fr; overflow: visible; }
   .premium-category-cards button { min-width: 0; }
-  .agent-invitation__visual,
-  .agent-invitation__visual img { min-height: 350px; }
   .agent-benefits { grid-template-columns: 1fr; }
   .agent-benefits li { min-height: auto; }
   .agent-invitation__actions { display: grid; }
