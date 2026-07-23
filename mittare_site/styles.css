@@ -1855,6 +1855,14 @@ svg { width: 1.35em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
 .coverage-table tbody th { width: 58%; color: var(--ink); font-weight: 700; }
 .coverage-table tbody td { color: var(--green-900); font-weight: 800; }
 .summary-coverage { margin-top: 16px; overflow: hidden; background: var(--white); border: 1px solid var(--line); border-radius: 15px; }
+.source-audit { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 14px; margin: 18px 0 30px; padding: 16px 18px; border: 1px solid #b8ddcf; border-radius: 16px; background: #eff9f5; }
+.source-audit > span { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: var(--green-800); color: #fff; font-weight: 800; }
+.source-audit strong { color: var(--green-900); font-size: .86rem; }
+.source-audit p { margin: 3px 0 0; color: var(--muted); font-size: .72rem; }
+.source-audit a,.plan-card__source { color: var(--green-800); font-size: .72rem; font-weight: 700; text-underline-offset: 3px; }
+.plan-card__source { display: inline-flex; align-items: center; gap: 6px; width: fit-content; margin: 2px 0 14px; }
+.plan-card__source span { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #dff4eb; font-size: .62rem; }
+@media (max-width: 700px) { .source-audit { grid-template-columns: 38px minmax(0,1fr); } .source-audit > a { grid-column: 2; } }
 .premium-form-panel,
 .premium-form-panel > *,
 .form-grid > *,

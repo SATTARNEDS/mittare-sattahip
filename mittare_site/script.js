@@ -1454,6 +1454,9 @@ function renderInsurancePlans() {
       </div>
       <h3>${plan.title}</h3>
       <p>${plan.lead}</p>
+      <a class="plan-card__source" href="${escapeAttribute(getOfficialProductUrl(plan))}" target="_blank" rel="noopener" aria-label="ตรวจสอบ ${escapeAttribute(plan.title)} กับแหล่งข้อมูลทางการ">
+        <span aria-hidden="true">✓</span> อ้างอิงข้อมูลมิตรแท้ประกันภัย ↗
+      </a>
       <div class="plan-card__premium">
         <span>${fixedPremiumCatalog[plan.id] ? "ราคาในโบรชัวร์" : "แนวทางเบี้ยประกัน"}</span>
         <strong>${fixedPremiumCatalog[plan.id] ? "มีราคา Fix ให้เลือก" : plan.premiumLabel}</strong>
@@ -1545,7 +1548,7 @@ function openProductDetail(productId) {
   if (notice) {
     notice.innerHTML = `
       <strong>ข้อมูลสำคัญก่อนตัดสินใจ</strong><br>
-      ข้อมูลนี้เรียบเรียงตามประเภทผลิตภัณฑ์เพื่อช่วยทำความเข้าใจความคุ้มครอง ปัจจัยรับประกัน
+      ข้อมูลนี้ตรวจทานกับแหล่งข้อมูลของบริษัทเมื่อ 23 กรกฎาคม 2569 และเรียบเรียงเพื่อช่วยทำความเข้าใจความคุ้มครอง ปัจจัยรับประกัน
       ข้อยกเว้น และเอกสารที่ควรเตรียม เงื่อนไขที่มีผลบังคับจริงให้ยึดกรมธรรม์ ตารางกรมธรรม์
       เอกสารแนบท้าย และการพิจารณารับประกันภัยของบริษัท
       <br><a href="${getOfficialProductUrl(product)}" target="_blank" rel="noopener">ตรวจสอบข้อมูลผลิตภัณฑ์ต้นฉบับจากมิตรแท้ประกันภัย ↗</a>

@@ -76,6 +76,30 @@ let simulationRules = null;
 
 const $ = (id) => document.getElementById(id);
 let memberSessionReady = Promise.resolve(false);
+
+function initializeExamNavigation() {
+  const menuToggle = $("exam-menu-toggle");
+  const navigation = $("exam-main-navigation");
+  if (!menuToggle || !navigation) return;
+
+  const closeNavigation = () => {
+    menuToggle.setAttribute("aria-expanded", "false");
+    navigation.classList.remove("is-open");
+    navigation.querySelectorAll("details[open]").forEach((item) => item.removeAttribute("open"));
+  };
+
+  menuToggle.addEventListener("click", () => {
+    const willOpen = menuToggle.getAttribute("aria-expanded") !== "true";
+    menuToggle.setAttribute("aria-expanded", String(willOpen));
+    navigation.classList.toggle("is-open", willOpen);
+  });
+  navigation.addEventListener("click", (event) => {
+    if (event.target.closest("a") && window.matchMedia("(max-width: 1100px)").matches) closeNavigation();
+  });
+  window.addEventListener("resize", () => {
+    if (!window.matchMedia("(max-width: 1100px)").matches) closeNavigation();
+  });
+}
 const shuffle = (items) => {
   const result = [...items];
   for (let i = result.length - 1; i > 0; i -= 1) {
@@ -642,7 +666,6 @@ $("start-flashcards").addEventListener("click", startFlashcards);
 $("exit-exam").addEventListener("click", goHome);
 $("back-home").addEventListener("click", goHome);
 $("exit-flashcards").addEventListener("click", goHome);
-$("brand-home").addEventListener("click", (event) => {event.preventDefault(); goHome();});
 $("user-menu").addEventListener("click", openMemberDialog);
 $("close-user-dialog").addEventListener("click", () => {pendingExamStart = false; $("user-dialog").close();});
 $("user-form").addEventListener("submit", registerUser);
@@ -699,6 +722,7 @@ $("theme-toggle").addEventListener("click", () => {
 const initialState = getState();
 document.documentElement.dataset.theme = initialState.theme;
 $("theme-toggle").textContent = initialState.theme === "dark" ? "☀" : "☾";
+initializeExamNavigation();
 updateDashboard();
 memberSessionReady = restoreMemberSession();
 loadTopics();
