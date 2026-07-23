@@ -1759,6 +1759,11 @@ function initializeMotionEffects() {
     [".why-us__content", "right"],
     [".benefit-list li", "up"],
     [".leader-card", "up"],
+    [".plan-card", "up"],
+    [".source-audit", "up"],
+    [".agent-benefits li", "up"],
+    [".agent-stat-card", "up"],
+    [".customer-result", "up"],
     [".emergency__inner > *", "up"],
     [".quote__content", "left"],
     [".quote-form", "right"]
@@ -1835,7 +1840,7 @@ function initializeMotionEffects() {
 
   document.documentElement.addEventListener("mouseleave", () => cursorGlow?.classList.remove("is-visible"));
 
-  document.querySelectorAll(".category-card, .leader-card__photo").forEach((card) => {
+  document.querySelectorAll(".category-card, .leader-card__photo, .plan-card, .agent-benefits li").forEach((card) => {
     card.addEventListener("pointermove", (event) => {
       const bounds = card.getBoundingClientRect();
       const relativeX = (event.clientX - bounds.left) / bounds.width;
@@ -1851,6 +1856,19 @@ function initializeMotionEffects() {
       card.style.removeProperty("--tilt-y");
       card.style.removeProperty("--glow-x");
       card.style.removeProperty("--glow-y");
+    });
+  });
+
+  document.querySelectorAll(".button, .product-detail-trigger, .premium-choice-button, .primary-button").forEach((control) => {
+    control.classList.add("has-press-effect");
+    control.addEventListener("pointerdown", (event) => {
+      const bounds = control.getBoundingClientRect();
+      const ripple = document.createElement("span");
+      ripple.className = "interaction-ripple";
+      ripple.style.left = `${event.clientX - bounds.left}px`;
+      ripple.style.top = `${event.clientY - bounds.top}px`;
+      control.append(ripple);
+      ripple.addEventListener("animationend", () => ripple.remove(), { once: true });
     });
   });
 }
