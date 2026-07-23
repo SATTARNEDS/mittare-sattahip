@@ -128,8 +128,8 @@ def create_app() -> Flask:
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; script-src 'self'; style-src 'self'; "
-            "img-src 'self' data:; connect-src 'self'; font-src 'self'; "
+            "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; "
+            "img-src 'self' data:; connect-src 'self'; font-src 'self' https://fonts.gstatic.com; "
             "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         )
         if request.is_secure or request.headers.get("X-Forwarded-Proto", "").lower() == "https":

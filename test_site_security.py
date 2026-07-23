@@ -53,6 +53,8 @@ class SiteSecurityTest(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
         self.assertIn("object-src 'none'", response.headers["Content-Security-Policy"])
+        self.assertIn("style-src 'self' https://fonts.googleapis.com", response.headers["Content-Security-Policy"])
+        self.assertIn("font-src 'self' https://fonts.gstatic.com", response.headers["Content-Security-Policy"])
         response.close()
 
         csrf_token = self.login()
